@@ -132,7 +132,7 @@ class GameDataManager:
     def update_manifest_location_references(self, launcher_manifest: FileDirectory, updated_game_folder: str) -> None:
         
         # Open file as read/write
-        with open(launcher_manifest.path, 'r+') as file:
+        with open(launcher_manifest.path, 'r+', encoding='utf-8') as file:
             data = json.load(file)
 
             # Check version
