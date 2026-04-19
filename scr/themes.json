@@ -1,0 +1,61 @@
+{
+    "active_theme": "Dark Blue",
+    "themes": {
+        "Dark Blue": {
+            "mode": "dark",
+            "bg": "#080c14",
+            "panel": "#0e1520",
+            "card": "#111827",
+            "border": "#1e2d45",
+            "accent": "#3b82f6",
+            "accent2": "#6366f1",
+            "success": "#22c55e",
+            "warn": "#f59e0b",
+            "error": "#ef4444",
+            "text": "#d1e4ff",
+            "muted": "#4a6285"
+        },
+        "Hacker Green": {
+            "mode": "dark",
+            "bg": "#050a05",
+            "panel": "#081008",
+            "card": "#0c180c",
+            "border": "#153515",
+            "accent": "#00ff41",
+            "accent2": "#00cc33",
+            "success": "#00e5ff",
+            "warn": "#ffcc00",
+            "error": "#ff3333",
+            "text": "#00ff41",
+            "muted": "#1a5c1a"
+        },
+        "Amoled Black": {
+            "mode": "dark",
+            "bg": "#000000",
+            "panel": "#040404",
+            "card": "#080808",
+            "border": "#1a1a1a",
+            "accent": "#4f8ef7",
+            "accent2": "#6c63ff",
+            "success": "#22c55e",
+            "warn": "#f59e0b",
+            "error": "#ef4444",
+            "text": "#ffffff",
+            "muted": "#888888"
+        },
+        "Light White": {
+            "mode": "light",
+            "bg": "#f0f4ff",
+            "panel": "#e8eeff",
+            "card": "#ffffff",
+            "border": "#c7d4f0",
+            "accent": "#2563eb",
+            "accent2": "#4f46e5",
+            "success": "#16a34a",
+            "warn": "#d97706",
+            "error": "#dc2626",
+            "text": "#0f172a",
+            "muted": "#64748b"
+        }
+    }
+}

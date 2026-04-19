@@ -1,8 +1,16 @@
-**IMPORTANT** ***NOTHING EXCEPT THE NEW FUNCTIONS ARE TESTED ON THIS FORKED VERSION, I DON'T KNOW IF IT WORKS PROPERLY, THE OLD CODE WASNT TOUCHED OR EDITED BUT IT WAS ADAPTED, THIS WAS MADE WITH HELP BY AI, WOULD NOT RECOMMEND TO PUSH THIS INTO MAIN, I WON'T DO ANY PULL REQUEST EITHER*** 
+> **IMPORTANT** — ***NOTHING EXCEPT THE NEW FUNCTIONS ARE TESTED ON THIS FORKED VERSION. I DON'T KNOW IF IT WORKS PROPERLY. THE OLD CODE WASN'T TOUCHED OR EDITED BUT IT WAS ADAPTED. THIS WAS MADE WITH HELP BY AI. WOULD NOT RECOMMEND TO PUSH THIS INTO MAIN. I WON'T DO ANY PULL REQUEST EITHER.***
 
-# Epic-Games-Library-Relinker
-Used to relink and manage games from the Epic Games Launcher.
-[Video About Project](https://youtu.be/_mA0eiudK2g?si=I86LxzpQH4R1pq1L)
+---
+
+# Epic Games Library Relinker GUI
+
+A tool to relink, move, manage, link, capture/detect and fix games from the Epic Games Launcher.
+
+> Original project by [Supernova1114](https://github.com/Supernova1114) · [Video About Project](https://youtu.be/_mA0eiudK2g?si=I86LxzpQH4R1pq1L)
+> 
+> This fork adds a new web-based GUI and additional features (Capture, Link, Fix). Developed by Super0Teah+AI credits to Supernova1114.
+
+**Original README from Supernova1114**:
 
 ## Reason for the existence of this project:
 - The launcher does not have the option to add preinstalled games to your library from a storage drive.
@@ -79,3 +87,92 @@ version of the game, where game files and updates should be downloaded from, etc
 - The launcher should have a file within its program data directory, which specifies the locations of parent folders that have been linked by the user or created through the launcher.
 - When installing a game, the user could pick from their existing parent folders, or choose to create another parent folder.
 - When the launcher starts up, it would search through the parent folders to see which games are installed. The launcher would read the `.item` and `.manifest` files within the `.egstore/` folder for each game in order to understand the state of the game, as well as any information relating to the installation.
+
+**Readme for my FORK**
+
+## About Platforms
+
+- Tested on **Windows 10** only.
+- The default manifests path (`C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests`) is Windows-specific.
+
+
+## Requirements
+
+- **Python 3.10+**
+- **pywebview** — used for the GUI window
+
+  ```
+  pip install pywebview
+  ```
+
+- **customtkinter** — used by the legacy GUI
+
+  ```
+  pip install customtkinter
+  ```
+
+### Capture Missing Manifests
+Use this when the launcher has no manifest for a game you already have installed.
+
+1. Set your **Manifests Folder** and **Games Folder** in Settings.
+2. Click **Capture**.
+3. For each game listed, go to the Epic Launcher and **start a fresh download** of that game.
+4. Once the launcher creates the `.item` file (usually within a few seconds), click **Done** in the dialog.
+5. The tool captures the manifest, rewrites it to point to your existing installation, and cleans up any partial download data Epic started.
+
+> **Note:** "Install failed" messages in the Epic Launcher during this process are normal — ignore them.
+
+---
+
+### Link
+Use this when manifests exist in `Manifests\Pending\` but haven't been moved to the root yet (e.g. a download was cancelled before it finished).
+
+1. Click **Link**.
+2. For each pending manifest found, select which game folder it belongs to.
+3. The tool rewrites the install paths and moves the manifest to the root manifests folder so the launcher can detect the game.
+
+---
+
+### Fix Manifest Link
+Use this when a launcher manifest exists but points to the wrong folder (e.g. after manually moving a game without using this tool).
+
+1. Click **Fix Manifest Link**.
+2. Select the incorrect manifest on the left.
+3. Select the correct game folder on the right.
+4. Click **Fix Link**.
+
+You can fix multiple manifests in the same session without closing the window.
+
+---
+
+### Fix DLC Link
+Same workflow as Fix Manifest Link, but designed for DLC manifests. The syncing logic is DLC-aware and will not overwrite sibling manifest files belonging to other DLCs in the same `.egstore` folder.
+
+---
+
+## Project Structure
+
+```
+main.py               # Entry point — launches the pywebview GUI
+webview_app.py        # GUI backend (pywebview API, action dispatcher, threading)
+game_data.py          # Core logic: manifest reading, relinking, moving
+manifest_capture.py   # Capture, Link, and Fix logic
+file_management.py    # Path/file helpers
+menu_cli.py           # CLI menu helpers (used internally, bypassed by GUI)
+gui_app.py            # Legacy CustomTkinter GUI (not the active entry point)
+themes.json           # Theme definitions for the GUI
+web/
+  index.html          # GUI frontend
+  app.js              # Frontend logic
+  style.css           # Styling and themes
+```
+
+---
+
+## Research Notes
+
+The Epic Games Launcher stores `.item` manifest files in `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests` rather than alongside each game. These files record where each game is installed, its version, and where to find its `.manifest` file inside the game's `.egstore` folder.
+
+Because manifests are tied to a specific launcher installation rather than the game's location on disk, any manual move or drive transfer breaks the association. This tool patches those paths directly inside the manifest JSON so the launcher can find the game again.
+
+For a deeper explanation of the problem and a proposed fix Epic Games could implement, see the [original project](https://github.com/Supernova1114/Epic-Games-Library-Relinker).
