@@ -390,3 +390,225 @@ class ManifestCapture:
 
         except Exception as exc:
             return False, f"Error: {exc}"
+
+    # ── Manifest Management Tools (#14) ──────────────────────────────────────
+
+    def get_orphaned_manifests(self) -> list[dict]:
+        """
+        Scans every .item file in the Manifests root (not Pending) and returns
+        those whose InstallLocation points to a folder that does NOT exist on disk.
+
+        Each result dict:
+            file_path    – absolute path to the .item file
+            file_name    – basename of the .item file
+            display_name – human-readable game name (may be empty)
+            install_location – the path that is missing
+        """
+        orphans: list[dict] = []
+        try:
+            for e in os.scandir(self._launcher_manifest_folder):
+                if not (e.is_file() and e.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE)):
+                    continue
+                try:
+                    with open(e.path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    install_loc = data.get("InstallLocation", "").strip()
+                    display     = data.get("DisplayName") or data.get("AppName") or ""
+                    if not install_loc:
+                        # No install location set at all → definitely orphaned
+                        orphans.append({
+                            "file_path":        e.path,
+                            "file_name":        e.name,
+                            "display_name":     display,
+                            "install_location": "(no path set)",
+                        })
+                    elif not os.path.isdir(install_loc):
+                        orphans.append({
+                            "file_path":        e.path,
+                            "file_name":        e.name,
+                            "display_name":     display,
+                            "install_location": install_loc,
+                        })
+                except Exception:
+                    # Unreadable / corrupt JSON → treat as orphaned
+                    orphans.append({
+                        "file_path":        e.path,
+                        "file_name":        e.name,
+                        "display_name":     "(unreadable)",
+                        "install_location": "(could not parse)",
+                    })
+        except OSError:
+            pass
+        return orphans
+
+    REQUIRED_MANIFEST_KEYS = [
+        "FormatVersion",
+        "AppName",
+        "DisplayName",
+        "InstallLocation",
+        "ManifestLocation",
+    ]
+
+    def validate_manifests(self) -> list[dict]:
+        """
+        Validates every .item file in the Manifests root (not Pending).
+        Returns a list of issue dicts with:
+            file_path    – absolute path
+            file_name    – basename
+            display_name – human-readable name or empty
+            issues       – list[str] of problem descriptions
+            severity     – "ok" | "warning" | "error"
+        Only files WITH at least one issue are returned.
+        """
+        results: list[dict] = []
+        try:
+            for e in os.scandir(self._launcher_manifest_folder):
+                if not (e.is_file() and e.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE)):
+                    continue
+
+                issues: list[str] = []
+                severity = "ok"
+                display  = ""
+
+                try:
+                    with open(e.path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    display = data.get("DisplayName") or data.get("AppName") or ""
+
+                    # 1. Check required keys
+                    for key in self.REQUIRED_MANIFEST_KEYS:
+                        if key not in data:
+                            issues.append(f"Missing required key: '{key}'")
+                            severity = "error"
+
+                    # 2. Check FormatVersion
+                    fv = data.get("FormatVersion", None)
+                    if fv is not None and fv not in GameDataManager.SUPPORTED_LAUNCHER_MANIFEST_VERSIONS:
+                        issues.append(f"Unknown FormatVersion: {fv} (expected one of {GameDataManager.SUPPORTED_LAUNCHER_MANIFEST_VERSIONS})")
+                        if severity != "error":
+                            severity = "warning"
+
+                    # 3. Check InstallLocation exists on disk
+                    install_loc = data.get("InstallLocation", "").strip()
+                    if install_loc:
+                        if not os.path.isdir(install_loc):
+                            issues.append(f"InstallLocation does not exist: {install_loc}")
+                            if severity != "error":
+                                severity = "warning"
+                    else:
+                        issues.append("InstallLocation is empty or missing")
+                        if severity != "error":
+                            severity = "warning"
+
+                    # 4. Check ManifestLocation folder exists
+                    manifest_loc = data.get("ManifestLocation", "").strip()
+                    if manifest_loc and not os.path.isdir(manifest_loc):
+                        issues.append(f"ManifestLocation (.egstore) does not exist: {manifest_loc}")
+                        if severity != "error":
+                            severity = "warning"
+
+                    # 5. Flag incomplete installs
+                    if data.get("bIsIncompleteInstall", False):
+                        issues.append("Flagged as incomplete install (bIsIncompleteInstall = true)")
+                        if severity == "ok":
+                            severity = "warning"
+
+                except json.JSONDecodeError:
+                    issues.append("File is not valid JSON — likely corrupted")
+                    severity = "error"
+                except Exception as exc:
+                    issues.append(f"Could not read file: {exc}")
+                    severity = "error"
+
+                if issues:
+                    results.append({
+                        "file_path":    e.path,
+                        "file_name":    e.name,
+                        "display_name": display,
+                        "issues":       issues,
+                        "severity":     severity,
+                    })
+        except OSError:
+            pass
+        return results
+
+    @staticmethod
+    def delete_manifest(item_path: str) -> tuple[bool, str]:
+        """Permanently deletes the given .item manifest file."""
+        try:
+            os.remove(item_path)
+            return True, f"Deleted: {os.path.basename(item_path)}"
+        except Exception as exc:
+            return False, f"Could not delete {os.path.basename(item_path)}: {exc}"
+
+    def get_duplicate_pending_manifests(self) -> list[dict]:
+        """
+        Finds .item files in the Pending subfolder that are duplicates of an
+        already-existing manifest in the root Manifests folder.
+
+        Comparison is done by AppName (the game's unique Epic identifier).
+        If a root manifest already covers the same AppName, the Pending copy
+        is safe to delete — it is just a leftover from a cancelled download.
+
+        Each result dict:
+            file_path         – absolute path to the PENDING .item file
+            file_name         – basename of the pending .item
+            display_name      – human-readable name (may be empty)
+            app_name          – Epic AppName used for matching
+            root_file_name    – basename of the root manifest that supersedes it
+            root_install_ok   – bool: whether root manifest's InstallLocation exists
+        """
+        pending_dir = os.path.join(self._launcher_manifest_folder, self.PENDING_FOLDER_NAME)
+        if not os.path.isdir(pending_dir):
+            return []
+
+        # Build AppName → (file_path, install_location) map from root manifests
+        root_by_appname: dict[str, dict] = {}
+        try:
+            for e in os.scandir(self._launcher_manifest_folder):
+                if not (e.is_file() and e.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE)):
+                    continue
+                try:
+                    with open(e.path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    app_name = data.get("AppName", "").strip()
+                    if app_name:
+                        root_by_appname[app_name] = {
+                            "file_path":        e.path,
+                            "file_name":        e.name,
+                            "install_location": data.get("InstallLocation", "").strip(),
+                        }
+                except Exception:
+                    pass
+        except OSError:
+            return []
+
+        # Now scan Pending and match
+        duplicates: list[dict] = []
+        try:
+            for e in os.scandir(pending_dir):
+                if not (e.is_file() and e.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE)):
+                    continue
+                try:
+                    with open(e.path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    app_name    = data.get("AppName", "").strip()
+                    display     = data.get("DisplayName") or data.get("AppName") or ""
+                    if app_name and app_name in root_by_appname:
+                        root = root_by_appname[app_name]
+                        root_install_ok = bool(root["install_location"]) and os.path.isdir(root["install_location"])
+                        duplicates.append({
+                            "file_path":       e.path,
+                            "file_name":       e.name,
+                            "display_name":    display,
+                            "app_name":        app_name,
+                            "root_file_name":  root["file_name"],
+                            "root_install_ok": root_install_ok,
+                        })
+                except Exception:
+                    pass
+        except OSError:
+            pass
+
+        return duplicates

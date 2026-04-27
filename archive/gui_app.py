@@ -1,5 +1,6 @@
 """
 Epic Games Relinker – GUI front-end (CustomTkinter 5.x)
+[LEGACY VERSION] - Archived for reference.
 Runs all backend operations in background threads and intercepts
 print() / input() / MenuCLI so game_data.py needs no changes.
 """
@@ -13,7 +14,12 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
 # ── project imports ──────────────────────────────────────────────────────────
-sys.path.insert(0, os.path.dirname(__file__))
+import os
+import sys
+# Add the /src directory to the path so we can find logic files
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+sys.path.insert(0, os.path.dirname(__file__)) # Also look here for themes.json
+
 from file_management import FileManagement
 from game_data import GameDataManager
 import menu_cli as menu_cli_module
@@ -1073,7 +1079,7 @@ class App(ctk.CTk):
         self._log_text.tag_config("sep",     foreground=C_BORDER)
         self._log_text.tag_config("STEP",    foreground=C_ACCENT2)
 
-        self.log("Ready. Configure paths and choose an action.", tag="INFO")
+        self.log("INFO: This version is old and probably not completely tested. You should use the newer version of the program. (Archived version for reference, preserving, and cleaning purposes).", tag="WARNING")
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -1126,8 +1132,8 @@ class App(ctk.CTk):
     def _show_credits(self):
         messagebox.showinfo(
             "Credits",
-            "Epic Games Relinker GUI\n\n"
-            "Developed by Jeremi\n\n"
+            "Developed by Supernova1114 (Original Developer) &\n"
+            "Super0Teah (GUI Dev)\n\n"
             "A modern tool to intelligently move and relink Epic Games installations.",
             parent=self
         )

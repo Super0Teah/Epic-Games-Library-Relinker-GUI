@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from file_management import FileDirectory, FileManagement
-from menu_cli import MenuCLI
 import os
 import sys
 import json
@@ -194,15 +193,14 @@ class GameDataManager:
 
     def backup_manifests(self) -> None:
 
-        if MenuCLI.yes_no_prompt(f"Launcher manifests will backup to \"{self._manifest_backup_folder}\". Continue?") == False:
-            print("INFO: Aborting...")
-            sys.exit(0)
+        # GUI: confirmation is handled upstream by the dispatcher — auto-confirm here.
+        # if MenuCLI.yes_no_prompt(...) == False: sys.exit(0)
 
         FileManagement.try_create_dir(self._manifest_backup_folder)
 
         launcher_manifest_file_list: list[FileDirectory] = self.get_launcher_manifest_files(self._launcher_manifest_folder)
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         for game_data in self._game_data_list:
             for game_manifest in game_data.manifest_file_list:
@@ -217,38 +215,34 @@ class GameDataManager:
             # END for
         # END for
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
     def restore_manifests(self) -> None:
 
         FileManagement.assert_path_exists(self._manifest_backup_folder, hint="You may need to backup manifests first.")
 
-        if MenuCLI.yes_no_prompt(f"Launcher manifests will restore to \"{self._launcher_manifest_folder}\". Continue?") == False:
-            print("INFO: Aborting...")
-            sys.exit(0)
+        # GUI: confirmation is handled upstream by the dispatcher — auto-confirm here.
+        # if MenuCLI.yes_no_prompt(...) == False: sys.exit(0)
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         for manifest_entry in os.scandir(self._manifest_backup_folder):
             if self.is_valid_launcher_manifest_file(manifest_entry):
                 print(f"INFO: Restoring launcher manifest: {manifest_entry.name}")
                 shutil.copy2(manifest_entry.path, self._launcher_manifest_folder)
         
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
     def move_game_installation(self) -> None:
         
         FileManagement.assert_path_exists(self._manifest_backup_folder, hint="You may need to backup manifests first.")
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
-        selected_games_list: list[GameData] = MenuCLI.list_prompt(
-            header="Movable Games Menu:",
-            prompt="Select games to move",
-            option_list=self._game_data_list
-        )
+        # GUI: game selection is handled upstream — use full list here.
+        selected_games_list: list[GameData] = self._game_data_list
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         if len(selected_games_list) == 0:
             print("INFO: No games selected. Exiting...")
@@ -267,18 +261,17 @@ class GameDataManager:
 
         FileManagement.assert_path_exists(destination_path)
         
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         prompt = f"Selected game installations will be moved to \"{destination_path}\".\n"
         prompt += "Manifest backup folder will be created.\n"
         prompt += "Associated manifest files will be moved.\n"
         prompt += "Manifest file location references will be updated.\nContinue?"
 
-        if MenuCLI.yes_no_prompt(prompt) == False:
-            print("INFO: Aborting...")
-            sys.exit(0)
+        # GUI: confirmation is handled upstream by the dispatcher — auto-confirm here.
+        # if MenuCLI.yes_no_prompt(prompt) == False: sys.exit(0)
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         # Create manifest backups folder in destination folder.
         destination_backup_folder = os.path.join(destination_path, self.MANIFEST_BACKUP_FOLDER_NAME)
@@ -323,7 +316,7 @@ class GameDataManager:
 
         print(f"INFO: Moving games (100%): DONE")
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         print("INFO: You should now run the \"Restore Manifests\" function!")
 
@@ -332,11 +325,10 @@ class GameDataManager:
         prompt: str = f"Launcher manifests within \"{self._manifest_backup_folder}\""
         prompt += " will be relinked to their associated games.\nContinue?"
         
-        if MenuCLI.yes_no_prompt(prompt) == False:
-            print("INFO: Aborting...")
-            sys.exit(0)
+        # GUI: confirmation is handled upstream by the dispatcher — auto-confirm here.
+        # if MenuCLI.yes_no_prompt(prompt) == False: sys.exit(0)
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
         backed_up_launcher_manifest_list: list[FileDirectory] = self.get_launcher_manifest_files(self._manifest_backup_folder)
 
@@ -355,7 +347,7 @@ class GameDataManager:
             # END for
         # END for
 
-        MenuCLI.print_line_separator()
+        print("-" * 40)
 
 
 
