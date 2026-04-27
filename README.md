@@ -99,17 +99,33 @@ version of the game, where game files and updates should be downloaded from, etc
 ## Requirements
 
 - **Python 3.10+**
-- **pywebview** — used for the GUI window
+- **pywebview** — for the modern GUI
+- **customtkinter** — for the legacy GUI
+- **pyinstaller** — for building the `.exe`
 
-  ```
-  pip install pywebview
-  ```
+Install all dependencies:
+```powershell
+pip install pywebview customtkinter pyinstaller
+```
 
-- **customtkinter** — used by the legacy GUI
+## Building the Executable
 
-  ```
-  pip install customtkinter
-  ```
+You can package the application into a standalone Windows `.exe` using the included `build_project.py` script.
+
+1. **Build the Main Version (Modern):**
+   ```powershell
+   python build_project.py main
+   ```
+2. **Build the Legacy Version (CustomTkinter):**
+   ```powershell
+   python build_project.py archive
+   ```
+3. **Clean Build Files:**
+   ```powershell
+   python build_project.py clean
+   ```
+
+The resulting executables will be located in the `dist/` folder.
 
 ### Capture Missing Manifests
 Use this when the launcher has no manifest for a game you already have installed.
