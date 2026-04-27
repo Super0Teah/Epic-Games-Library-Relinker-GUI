@@ -28,7 +28,13 @@ from manifest_capture import ManifestCapture
 # ── theme palette ────────────────────────────────────────────────────────────
 import json
 
-THEMES_FILE = "themes.json"
+def get_base_path():
+    """Returns the base path for assets, handling PyInstaller bundles."""
+    if hasattr(sys, '_MEIPASS'):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+THEMES_FILE = os.path.join(get_base_path(), "themes.json")
 
 _DEFAULT_THEMES = {
     "Hacker Green": {

@@ -64,14 +64,25 @@ class PyWebViewApi(
         )
 
 
+# ── Utility ───────────────────────────────────────────────────────────────────
+
+def get_base_path():
+    """Returns the base path for assets, handling PyInstaller bundles."""
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        return sys._MEIPASS
+    # Default to the directory of this file
+    return os.path.dirname(os.path.abspath(__file__))
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def launch_gui():
     api = PyWebViewApi()
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    web_dir     = os.path.join(current_dir, "web")
-    html_file   = os.path.join(web_dir, "index.html")
+    # Use the helper to find the web directory correctly when bundled
+    base_path = get_base_path()
+    web_dir   = os.path.join(base_path, "web")
+    html_file = os.path.join(web_dir, "index.html")
 
     window = webview.create_window(
         "Epic Games Relinker GUI",
