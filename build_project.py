@@ -35,6 +35,15 @@ def build_archive():
     # Path setup
     entry_point = os.path.join("archive", "gui_app.py")
     
+    # Try to find customtkinter path for bundling
+    ctk_data = ""
+    try:
+        import customtkinter
+        ctk_path = os.path.dirname(customtkinter.__file__)
+        ctk_data = f"{ctk_path}{os.pathsep}customtkinter"
+    except ImportError:
+        print("Warning: customtkinter not found, build might fail or UI might look broken.")
+
     # PyInstaller command
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -44,11 +53,16 @@ def build_archive():
         "--name", "EpicGamesRelinker_Legacy",
         # Include the themes.json
         "--add-data", f"archive/themes.json{os.pathsep}.",
-        # We need to include the customtkinter directory for its assets
-        # This usually requires finding where the site-package is
+        # Add src to the path so PyInstaller can find file_management, game_data, etc.
+        "--paths", "src",
         entry_point
     ]
     
+    if ctk_data:
+        # Insert before entry_point
+        cmd.insert(-1, "--add-data")
+        cmd.insert(-1, ctk_data)
+        
     subprocess.run(cmd)
 
 def clean():
