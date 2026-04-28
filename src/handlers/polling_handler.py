@@ -83,8 +83,11 @@ class PollingHandler:
     def get_readme(self) -> str:
         try:
             import sys
-            _EXE_PATH = os.path.dirname(sys.executable) if hasattr(sys, '_MEIPASS') else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            path = os.path.join(_EXE_PATH, "README.md")
+            if hasattr(sys, '_MEIPASS'):
+                path = os.path.join(sys._MEIPASS, "README.md")
+            else:
+                _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                path = os.path.join(_ROOT, "README.md")
             with open(path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception:

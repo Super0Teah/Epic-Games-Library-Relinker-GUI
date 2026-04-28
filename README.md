@@ -3,6 +3,7 @@
 ---
 
 # Epic Games Library Relinker GUI
+**Version: V2.0.0**
 
 A tool to relink, move, manage, link, capture/detect and fix games from the Epic Games Launcher.
 

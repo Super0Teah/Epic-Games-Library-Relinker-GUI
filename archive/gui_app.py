@@ -16,9 +16,14 @@ import customtkinter as ctk
 # ── project imports ──────────────────────────────────────────────────────────
 import os
 import sys
-# Add the /src directory to the path so we can find logic files
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-sys.path.insert(0, os.path.dirname(__file__)) # Also look here for themes.json
+
+def get_logic_path():
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, 'src')
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+sys.path.insert(0, get_logic_path())
+sys.path.insert(0, os.path.dirname(__file__) if not hasattr(sys, '_MEIPASS') else sys._MEIPASS)
 
 from file_management import FileManagement
 from game_data import GameDataManager
