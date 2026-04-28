@@ -120,75 +120,39 @@ You can package the application into a standalone Windows `.exe` using the inclu
    ```powershell
    python build_project.py archive
    ```
-3. **Clean Build Files:**
-   ```powershell
-   python build_project.py clean
-   ```
 
-The resulting executables will be located in the `dist/` folder.
+## How to use the Modern GUI
 
-### Capture Missing Manifests
-Use this when the launcher has no manifest for a game you already have installed.
+### Fixing "Unregistered" Games
+1. Ensure your **Manifests Folder** and **Games Folder** are set in Settings.
+2. Go to the **Library Fixer** tab.
+3. Any games marked as **Unregistered** can be added to Epic with one click using the **Fix** button.
 
-1. Set your **Manifests Folder** and **Games Folder** in Settings.
-2. Click **Capture**.
-3. For each game listed, go to the Epic Launcher and **start a fresh download** of that game.
-4. Once the launcher creates the `.item` file (usually within a few seconds), click **Done** in the dialog.
-5. The tool captures the manifest, rewrites it to point to your existing installation, and cleans up any partial download data Epic started.
-
-> **Note:** "Install failed" messages in the Epic Launcher during this process are normal — ignore them.
-
----
-
-### Link
-Use this when manifests exist in `Manifests\Pending\` but haven't been moved to the root yet (e.g. a download was cancelled before it finished).
-
-1. Click **Link**.
-2. For each pending manifest found, select which game folder it belongs to.
-3. The tool rewrites the install paths and moves the manifest to the root manifests folder so the launcher can detect the game.
-
----
-
-### Fix Manifest Link
-Use this when a launcher manifest exists but points to the wrong folder (e.g. after manually moving a game without using this tool).
-
-1. Click **Fix Manifest Link**.
-2. Select the incorrect manifest on the left.
-3. Select the correct game folder on the right.
-4. Click **Fix Link**.
-
-You can fix multiple manifests in the same session without closing the window.
-
----
-
-### Fix DLC Link
-Same workflow as Fix Manifest Link, but designed for DLC manifests. The syncing logic is DLC-aware and will not overwrite sibling manifest files belonging to other DLCs in the same `.egstore` folder.
+### Capturing Missing Manifests (Legacy Workflow)
+If a game has NO manifest file at all:
+1. Click **Capture** in Advanced Support.
+2. Start a fresh download of that game in the Epic Launcher.
+3. Once the launcher creates the `.item` file, click **Done** in the tool.
+4. The tool rewrites the manifest to point to your existing files and cancels the Epic download.
 
 ---
 
 ## Project Structure
 
 ```
-main.py               # Entry point — launches the pywebview GUI
-webview_app.py        # GUI backend (pywebview API, action dispatcher, threading)
-game_data.py          # Core logic: manifest reading, relinking, moving
-manifest_capture.py   # Capture, Link, and Fix logic
-file_management.py    # Path/file helpers
-menu_cli.py           # CLI menu helpers (used internally, bypassed by GUI)
-gui_app.py            # Legacy CustomTkinter GUI (not the active entry point)
-themes.json           # Theme definitions for the GUI
-web/
-  index.html          # GUI frontend
-  app.js              # Frontend logic
-  style.css           # Styling and themes
+src/
+  main.py               # Entry point
+  webview_app.py        # GUI backend (pywebview API)
+  handlers/             # Modular backend logic (Library, Actions, Settings)
+  web/                  # Frontend (HTML/JS/CSS)
+archive/                # Legacy CustomTkinter code
+build_project.py        # Automated build script
 ```
 
 ---
 
 ## Research Notes
 
-The Epic Games Launcher stores `.item` manifest files in `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests` rather than alongside each game. These files record where each game is installed, its version, and where to find its `.manifest` file inside the game's `.egstore` folder.
+The Epic Games Launcher stores `.item` manifest files in `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests` rather than alongside each game. This tool patches those paths directly inside the manifest JSON so the launcher can find the game again. 
 
-Because manifests are tied to a specific launcher installation rather than the game's location on disk, any manual move or drive transfer breaks the association. This tool patches those paths directly inside the manifest JSON so the launcher can find the game again.
-
-For a deeper explanation of the problem and a proposed fix Epic Games could implement, see the [original project](https://github.com/Supernova1114/Epic-Games-Library-Relinker).
+This version goes further by reading `C:\ProgramData\Epic\UnrealEngineLauncher\LauncherInstalled.dat` to ensure the internal registry matches the file system, preventing the "uninstalled" bug even when manifest files are present.

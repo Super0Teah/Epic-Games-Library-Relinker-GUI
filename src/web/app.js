@@ -2,29 +2,46 @@ const appCtrl = {
 
     _defaultManifestPath: '',
 
-    // ── Init ──────────────────────────────────────────────────────────────────
+    
     async init() {
-        const paths = await window.pywebview.api.get_initial_paths();
-        this._defaultManifestPath = paths.manifestPath;
+        try {
+            const res = await window.pywebview.api.get_initial_paths();
+            const paths = typeof res === 'string' ? JSON.parse(res) : res;
+            
+            this._defaultManifestPath = paths.manifestPath || '';
 
-        document.getElementById('manifestPath').value = paths.manifestPath;
-        document.getElementById('useDefault').checked = paths.useDefault;
-        document.getElementById('gamesPath').value   = paths.gamesPath;
+            document.getElementById('manifestPath').value = paths.manifestPath || '';
+            document.getElementById('useDefault').checked = !!paths.useDefault;
+            document.getElementById('gamesPath').value   = paths.gamesPath || '';
+            const homeGP = document.getElementById('homeGamesPath');
+            if (homeGP) homeGP.value = paths.gamesPath || '';
 
-        // Restore saved theme
-        const savedTheme = localStorage.getItem('relinker_theme') || 'Dark Blue';
-        document.getElementById('themeSelect').value = savedTheme;
-        this.applyTheme(savedTheme, false);
+            
+            const savedTheme = localStorage.getItem('relinker_theme') || 'Dark Blue';
+            const savedMode  = localStorage.getItem('relinker_mode')  || 'dark';
+            
+            document.getElementById('themeSelect').value = savedTheme;
+            document.getElementById('displayModeToggle').checked = (savedMode === 'light');
+            
+            this.applyTheme(savedTheme, false);
+            this.applyMode(savedMode);
 
-        // Restore debug mode
-        const savedDebug = localStorage.getItem('relinker_debug') === 'true';
-        document.getElementById('debugMode').checked = savedDebug;
+            
+            const savedDebug = localStorage.getItem('relinker_debug') === 'true';
+            document.getElementById('debugMode').checked = savedDebug;
+            if (localStorage.getItem('relinker_debug') === null) {
+                document.getElementById('debugMode').checked = false;
+            }
+        } catch (e) {
+            console.error('Init failed:', e);
+            this.appendLog('CRITICAL: Initialisation failed. Settings could not be loaded.', 'ERROR');
+        }
 
-        // Set action group states — start collapsed
+        
         this._expandedGroups = { 
             'group-relink': false, 
-            'group-capture': false,
             'group-manifest': false,
+            'group-capture': false,
             'lib-group-main': false,
             'lib-group-dlc': false,
             'lib-group-pending': false,
@@ -34,24 +51,23 @@ const appCtrl = {
             'help-capture': false,
             'help-link': false,
             'help-fix-games': false,
-            'help-fix-dlcs': false,
             'help-library': false,
             'help-manifest-tools': false
         };
-        // Let the DOM settle before measuring
+        
         requestAnimationFrame(() => {
-            // Only animate open if default state was set to true
-            for (const [id, isOpen] of Object.entries(this._expandedGroups)) {
-                if (isOpen) this._setGroupHeight(id);
-            }
+            
+            Object.keys(this._expandedGroups).forEach(id => {
+                this._setGroupHeight(id, false);
+            });
         });
     },
 
-    // ── Settings Panel ────────────────────────────────────────────────────────
+    
     openSettings() {
         const overlay = document.getElementById('settingsOverlay');
         if (!overlay.classList.contains('hidden')) {
-            this.closeSettings(null); // save + close
+            this.closeSettings(null); 
         } else {
             overlay.classList.remove('hidden');
         }
@@ -68,13 +84,13 @@ const appCtrl = {
 
     async resetSettings() {
         if (!confirm('Reset all settings to defaults?\n\nThis will clear your saved Manifests and Games paths and cannot be undone.')) return;
-        // Clear UI immediately
+        
         document.getElementById('useDefault').checked = true;
         document.getElementById('manifestPath').value = this._defaultManifestPath || '';
         document.getElementById('gamesPath').value = '';
         document.getElementById('themeSelect').value = 'Dark Blue';
         this.applyTheme('Dark Blue', true);
-        // Persist the cleared state
+        
         await window.pywebview.api.save_settings(this._defaultManifestPath || '', '', true);
         this.appendLog('Settings reset to defaults.', 'INFO');
     },
@@ -83,13 +99,17 @@ const appCtrl = {
         const res = await window.pywebview.api.get_initial_paths();
         const cfg = typeof res === 'string' ? JSON.parse(res) : res;
         if (cfg.manifestPath) document.getElementById('manifestPath').value = cfg.manifestPath;
-        if (cfg.gamesPath)    document.getElementById('gamesPath').value    = cfg.gamesPath;
+        if (cfg.gamesPath) {
+            document.getElementById('gamesPath').value = cfg.gamesPath;
+            const homeGP = document.getElementById('homeGamesPath');
+            if (homeGP) homeGP.value = cfg.gamesPath;
+        }
         document.getElementById('useDefault').checked = !!cfg.useDefault;
         this.appendLog('Settings restored from saved config.', 'INFO');
     },
 
 
-    // ── Help Panel ────────────────────────────────────────────────────────────
+    
     openHelp() {
         document.getElementById('helpOverlay').classList.remove('hidden');
     },
@@ -98,7 +118,7 @@ const appCtrl = {
         document.getElementById('helpOverlay').classList.add('hidden');
     },
 
-    // ── Theme ─────────────────────────────────────────────────────────────────
+    
     applyTheme(name, save = true) {
         document.documentElement.setAttribute('data-theme', name);
         const sel = document.getElementById('themeSelect');
@@ -106,7 +126,18 @@ const appCtrl = {
         if (save) localStorage.setItem('relinker_theme', name);
     },
 
-    // ── Debug ─────────────────────────────────────────────────────────────────
+    onModeToggle() {
+        const isLight = document.getElementById('displayModeToggle').checked;
+        const mode = isLight ? 'light' : 'dark';
+        this.applyMode(mode);
+    },
+
+    applyMode(mode) {
+        document.documentElement.setAttribute('data-mode', mode);
+        localStorage.setItem('relinker_mode', mode);
+    },
+
+    
     onDebugToggle() {
         const val = document.getElementById('debugMode').checked;
         localStorage.setItem('relinker_debug', val);
@@ -117,7 +148,7 @@ const appCtrl = {
         );
     },
 
-    // ── Default path toggle ───────────────────────────────────────────────────
+    
     toggleDefault() {
         const checked = document.getElementById('useDefault').checked;
         const field   = document.getElementById('manifestPath');
@@ -128,7 +159,7 @@ const appCtrl = {
         }
     },
 
-    // ── Path Browsing ─────────────────────────────────────────────────────────
+    
     async browseManifests() {
         const path = await window.pywebview.api.browse_directory("Select Manifests Folder");
         if (path) {
@@ -138,10 +169,25 @@ const appCtrl = {
     },
     async browseGames() {
         const path = await window.pywebview.api.browse_directory("Select Games Folder");
-        if (path) document.getElementById('gamesPath').value = path;
+        if (path) {
+            document.getElementById('gamesPath').value = path;
+            const homePath = document.getElementById('homeGamesPath');
+            if (homePath) homePath.value = path;
+        }
     },
 
-    // ── Run Action ────────────────────────────────────────────────────────────
+    syncGamesPath(source) {
+        if (source === 'home') {
+            const val = document.getElementById('homeGamesPath').value;
+            document.getElementById('gamesPath').value = val;
+        } else {
+            const val = document.getElementById('gamesPath').value;
+            const home = document.getElementById('homeGamesPath');
+            if (home) home.value = val;
+        }
+    },
+
+    
     runAction(action) {
         const m   = document.getElementById('manifestPath').value;
         const g   = document.getElementById('gamesPath').value;
@@ -150,64 +196,38 @@ const appCtrl = {
         window.pywebview.api.start_action(action, m, g, d, dbg);
     },
 
-    // ── Accordion ─────────────────────────────────────────────────────────────
-    _expandedGroups: {}, // defaults to false (collapsed)
+    
+    _expandedGroups: {}, 
 
     toggleGroup(id) {
-        // Now defaults to false (collapsed)
-        const isOpen = this._expandedGroups[id] === true;
-        this._expandedGroups[id] = !isOpen;
+        this._expandedGroups[id] = !this._expandedGroups[id];
         this._setGroupHeight(id);
     },
 
-    _setGroupHeight(id) {
+    _setGroupHeight(id, animate = true) {
         const body    = document.getElementById('body-' + id);
         const chevron = document.getElementById('chevron-' + id);
         if (!body || !chevron) return;
         
         const isOpen  = this._expandedGroups[id] === true;
+        
+        if (!animate) body.style.transition = 'none';
 
         if (isOpen) {
             body.classList.remove('collapsed');
             chevron.classList.remove('collapsed');
-            
-            // Measure scrollHeight (already correct because padding/max-height are removed by class change)
-            // Need to temporarily remove inline max-height if any
-            body.style.maxHeight = '';
-            const fullHeight = body.scrollHeight;
-            
-            // Start from 0 to animate up
-            body.style.maxHeight = '0px';
-            body.offsetHeight; // Force reflow
-            
-            body.style.maxHeight = fullHeight + 'px';
-
-            const onDone = (e) => {
-                if (e.target !== body) return;
-                if (this._expandedGroups[id] === true) {
-                    body.style.maxHeight = 'none';
-                }
-                body.removeEventListener('transitionend', onDone);
-            };
-            body.addEventListener('transitionend', onDone);
-
         } else {
-            // Pin current height before collapsing
-            if (body.style.maxHeight === 'none' || body.style.maxHeight === '') {
-                body.style.maxHeight = body.scrollHeight + 'px';
-                body.offsetHeight; // force reflow
-            }
-            
-            // Next frame set to 0
-            requestAnimationFrame(() => {
-                body.classList.add('collapsed');
-                chevron.classList.add('collapsed');
-                body.style.maxHeight = '0px';
-            });
+            body.classList.add('collapsed');
+            chevron.classList.add('collapsed');
+        }
+        
+        if (!animate) {
+            body.offsetHeight; 
+            body.style.transition = '';
         }
     },
 
-    // ── Log ───────────────────────────────────────────────────────────────────
+    
 
     _terminalOn: true,
 
@@ -217,7 +237,7 @@ const appCtrl = {
         panel.classList.remove('log-showing');
         panel.classList.add('log-hiding');
         setTimeout(() => { panel.classList.add('hidden'); panel.classList.remove('log-hiding'); }, 320);
-        // Update blob buttons to reflect new state (still on tools section)
+        
         document.getElementById('hideLogBtn').style.display = 'none';
         document.getElementById('showLogBtn').style.display = '';
         document.getElementById('easterEggCorner').classList.remove('hidden');
@@ -230,7 +250,7 @@ const appCtrl = {
         panel.classList.remove('log-hiding');
         panel.classList.add('log-showing');
         setTimeout(() => { panel.classList.remove('log-showing'); }, 320);
-        // Update blob buttons to reflect new state (still on tools section)
+        
         document.getElementById('showLogBtn').style.display = 'none';
         document.getElementById('hideLogBtn').style.display = '';
         document.getElementById('easterEggCorner').classList.add('hidden');
@@ -297,7 +317,7 @@ const appCtrl = {
         const lc = document.getElementById('logContent');
         lc.appendChild(entry);
 
-        // Update line count badge
+        
         const lineCount = lc.querySelectorAll('.log-entry').length;
         const countEl   = document.getElementById('terminalLineCount');
         if (countEl) countEl.textContent = `(${lineCount})`;
@@ -307,11 +327,11 @@ const appCtrl = {
         }
     },
 
-    // ── Modal State ───────────────────────────────────────────────────────────
+    
     currentManifests: [],
     currentGameList: [],
 
-    // ── Link Modal ────────────────────────────────────────────────────────────
+    
     openLinkModal(manifestsJson, gameListJson) {
         this.currentManifests = JSON.parse(manifestsJson);
         this.currentGameList  = JSON.parse(gameListJson);
@@ -336,7 +356,7 @@ const appCtrl = {
         window.pywebview.api.resume_link(sel.dataset.path);
     },
 
-    // ── Fix Modal ─────────────────────────────────────────────────────────────
+    
     openFixModal(manifestsJson, gameListJson, isDlc = false) {
         this.currentManifests = JSON.parse(manifestsJson);
         this.currentGameList  = JSON.parse(gameListJson);
@@ -398,7 +418,7 @@ const appCtrl = {
         document.getElementById('fixStatus').innerText = 'Fixing... check the log panel.';
         window.pywebview.api.resume_fix(m.file_path, sf.dataset.path);
     },
-    markFixDone(manifestPath) {
+    markFixDone(manifestPath, gamePath) {
         document.querySelectorAll('#fixManifestList .list-item').forEach(item => {
             const idx = parseInt(item.dataset.idx);
             if (this.currentManifests[idx]?.file_path === manifestPath) {
@@ -419,7 +439,7 @@ const appCtrl = {
         window.pywebview.api.abort_action();
     },
 
-    // ── Move Modal ────────────────────────────────────────────────────────────
+    
     async browseMoveDest() {
         const path = await window.pywebview.api.browse_directory("Select Destination Folder");
         if (path) document.getElementById('moveDestPath').value = path;
@@ -450,7 +470,7 @@ const appCtrl = {
         window.pywebview.api.resume_move(sel, dest);
     },
 
-    // ── Capture Modal ─────────────────────────────────────────────────────────
+    
     openCaptureModal(msg) {
         document.getElementById('captureModalMsg').innerText = msg;
         document.getElementById('modalOverlay').classList.remove('hidden');
@@ -462,14 +482,14 @@ const appCtrl = {
         window.pywebview.api.resume_capture(action);
     },
 
-    // ── Close all modals ──────────────────────────────────────────────────────
+    
     closeModals() {
         document.getElementById('modalOverlay').classList.add('hidden');
         document.querySelectorAll('.modal-content').forEach(m => m.classList.add('hidden'));
         window.pywebview.api.abort_action();
     },
 
-    // ── Game List Renderer ────────────────────────────────────────────────────
+    
     renderGameList(containerId, activeManifest, selClass) {
         window.pywebview.api.get_predictions(
             activeManifest ? JSON.stringify(activeManifest) : null,
@@ -505,27 +525,23 @@ const appCtrl = {
         });
     },
 
-    // ── Sidebar Navigation ────────────────────────────────────────────────────
+    
     switchNav(viewId) {
-        // Update nav buttons
+        
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.remove('active');
-            btn.style.background = 'transparent';
-            btn.style.color = 'var(--muted)';
         });
         const activeBtn = document.getElementById('nav-' + viewId);
         if (activeBtn) {
             activeBtn.classList.add('active');
-            activeBtn.style.background = 'rgba(255,255,255,0.1)';
-            activeBtn.style.color = 'white';
         }
 
-        // Hide all views, show target view
+        
         document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
         const targetView = document.getElementById(viewId + 'View');
         if (targetView) targetView.classList.remove('hidden');
 
-        // Show log blob only on Tools & Logs section
+        
         const hideLogBtn = document.getElementById('hideLogBtn');
         const showLogBtn = document.getElementById('showLogBtn');
         const isTools = viewId === 'tools';
@@ -584,7 +600,7 @@ const appCtrl = {
                 return;
             }
 
-            // ── Main Games ──
+            
             grid.innerHTML = '';
             const mgCount = document.getElementById('mainGamesCount');
             if (mgCount) mgCount.textContent = hasGames ? `(${res.games.length})` : '';
@@ -597,20 +613,20 @@ const appCtrl = {
                 grid.innerHTML = '<div class="text-center muted" style="padding: 40px;">No main games found.</div>';
             }
 
-            // ── DLCs ──
+            
             const dCount = document.getElementById('dlcCount');
             if (dCount) dCount.textContent = hasDlcs ? `(${res.dlcs.length})` : '';
 
             if (hasDlcs) {
                 if (!this._dlcScanned) {
-                    // First time: render automatically
+                    
                     this._dlcScanned = true;
                     this._renderDlcs(res.dlcs);
                 } else if (arguments[0] === true) {
-                    // Forced by clicking prompt button
+                    
                     this._renderDlcs(res.dlcs);
                 } else {
-                    // Prompt to load DLCs
+                    
                     dlcGrid.innerHTML = `
                         <div class="text-center" style="padding: 30px;">
                             <p class="muted mb-3" style="font-size: 13px;">DLCs and Add-ons are ready to be viewed.</p>
@@ -626,7 +642,7 @@ const appCtrl = {
                 if (dCount) dCount.textContent = '';
             }
 
-            // ── Pending Manifests ──
+            
             const pendingGrid    = document.getElementById('pendingGrid');
             const pendingSection = document.getElementById('pendingSection');
             const pendingCount   = document.getElementById('pendingSectionCount');
@@ -642,7 +658,7 @@ const appCtrl = {
                 pendingCount.textContent = '';
             }
 
-            // Re-measure accordion heights since content changed
+            
             requestAnimationFrame(() => {
                 this._setGroupHeight('lib-group-main');
                 this._setGroupHeight('lib-group-dlc');
@@ -670,6 +686,10 @@ const appCtrl = {
 
         if (game.status === 'Linked') {
             statusClass = 'status-Linked';
+        } else if (game.status === 'Unregistered') {
+            statusClass = 'status-Unregistered';
+            statusText = 'Unregistered';
+            pendingHint = 'Manifest found, but Epic Launcher registry (LauncherInstalled.dat) is missing or pointing to the wrong path.';
         } else if (game.status === 'Missing Manifest') {
             statusClass = 'status-Missing';
             statusText = 'Missing .item';
@@ -683,20 +703,34 @@ const appCtrl = {
             pendingHint = 'Duplicate leftover from a cancelled download. Use <b>Manifest Cleanup → Duplicate Pending</b> to remove it.';
         }
 
-        const safeGameName = game.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const safeGameName = game.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const safeGamePath = game.path.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"');
         const card = document.createElement('div');
         card.className = 'game-card';
         if (game.status === 'Pending Install')   card.classList.add('game-card-pending');
         if (game.status === 'Pending Manifest')  card.classList.add('game-card-pending-dupe');
+
+        
+        const canFix = (game.status === 'Missing Manifest' || game.status === 'Unregistered') && game.can_import;
+        const fixBtn = canFix
+            ? `<button class="btn-import" onclick="appCtrl.fixGame('${safeGamePath}', '${safeGameName}', this)">&#x1F527; Fix</button>`
+            : (game.status === 'Missing Manifest'
+                ? `<span class="import-unavailable" title="No .mancpn found in .egstore — use Fix Manifest Link instead.">No .mancpn</span>`
+                : '');
+
         card.innerHTML = `
             <div class="game-card-header">
-                <div class="game-title">${game.name}</div>
+                <div class="game-title">
+                    ${game.is_dlc ? '<span class="status-dot dlc" title="DLC / Add-on"></span>' : ''}
+                    ${game.name}
+                </div>
                 <div class="game-status ${statusClass}">${statusText}</div>
             </div>
             <div class="game-path" title="${game.path}">${game.path}</div>
             ${pendingHint ? `<div class="game-pending-hint">${pendingHint}</div>` : ''}
             <div class="game-actions">
-                ${game.app_name ? `<button class="btn-play" onclick="appCtrl.launchGame('${game.app_name}', '${safeGameName}', ${isDlc})">▶ Play</button>` : ''}
+                ${game.app_name ? `<button class="btn-play" onclick="appCtrl.launchGame('${game.app_name}', '${safeGameName}', ${isDlc})">&#x25B6; Play</button>` : ''}
+                ${fixBtn}
             </div>
         `;
 
@@ -716,15 +750,26 @@ const appCtrl = {
         window.pywebview.api.launch_game(appName);
     },
 
+    fixGame(gamePath, gameName, btnEl) {
+        if (!confirm(`Fix "${gameName}" in Epic Games Launcher?\n\nThis will:\n  • Create a new .item manifest from the .mancpn file\n  • Register the game in LauncherInstalled.dat\n  • Prompt you to restart the launcher\n\nA backup of LauncherInstalled.dat will be created first.`)) return;
+
+        
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Fixing…'; }
+
+        const m = document.getElementById('manifestPath').value;
+        
+        window.pywebview.api.start_action('import', m, gamePath, false, false);
+    },
+
     restartLauncher() {
         if (confirm("This will force-close and restart the Epic Games Launcher. Continue?")) {
             window.pywebview.api.restart_launcher();
         }
     },
 
-    // ── Manifest Cleanup (#14) ────────────────────────────────────────────
-    _cleanupOrphans: [],    // cached orphan scan results
-    _cleanupPending: [],    // cached pending-duplicate scan results
+    
+    _cleanupOrphans: [],    
+    _cleanupPending: [],    
     _cleanupActiveTab: 'orphans',
 
     async openManifestCleanup() {
@@ -734,9 +779,9 @@ const appCtrl = {
         const overlay = document.getElementById('manifestCleanupOverlay');
         const summary = document.getElementById('cleanupSummary');
 
-        // Reset to orphans tab
+        
         this._cleanupActiveTab = 'orphans';
-        this.cleanupSwitchTab('orphans', /*init=*/true);
+        this.cleanupSwitchTab('orphans', true);
 
         document.getElementById('cleanupOrphanList').innerHTML  = '<div class="muted text-center" style="padding:32px;">Scanning...</div>';
         document.getElementById('cleanupPendingList').innerHTML = '<div class="muted text-center" style="padding:32px;">Scanning...</div>';
@@ -759,13 +804,13 @@ const appCtrl = {
             this._cleanupOrphans = res.orphans       || [];
             this._cleanupPending = res.pending_dupes || [];
 
-            // ── Render orphans ──
+            
             this._renderOrphanList();
 
-            // ── Render pending duplicates ──
+            
             this._renderPendingList();
 
-            // Update tab counts
+            
             document.getElementById('cleanupCountOrphans').textContent =
                 this._cleanupOrphans.length ? `(${this._cleanupOrphans.length})` : '';
             document.getElementById('cleanupCountPending').textContent =
@@ -856,7 +901,7 @@ const appCtrl = {
     },
 
     cleanupSelectAll() {
-        // Scope to checkboxes in the ACTIVE tab only
+        
         const selector = this._cleanupActiveTab === 'orphans'
             ? '#cleanupOrphanList .orphan-check:not(:disabled)'
             : '#cleanupPendingList .orphan-check:not(:disabled)';
@@ -867,7 +912,7 @@ const appCtrl = {
     },
 
     async cleanupDeleteSelected() {
-        // Collect from BOTH tabs so users can switch tabs and delete all at once
+        
         const checked = Array.from(document.querySelectorAll('.orphan-check:checked:not(:disabled)'));
         if (checked.length === 0) {
             alert('No manifests selected. Check at least one row to delete.');
@@ -880,7 +925,7 @@ const appCtrl = {
         let deleted = 0;
         let failed  = 0;
         for (const cb of checked) {
-            const list = cb.dataset.list;  // 'orphans' | 'pending'
+            const list = cb.dataset.list;  
             const idx  = parseInt(cb.dataset.idx);
             const item = list === 'orphans' ? this._cleanupOrphans[idx] : this._cleanupPending[idx];
             if (!item) continue;
@@ -900,7 +945,7 @@ const appCtrl = {
         document.getElementById('cleanupSelectAllBtn').textContent = 'Select All';
     },
 
-    // ── Manifest Validator (#14) ───────────────────────────────────────────
+    
     async openManifestValidator() {
         const m = document.getElementById('manifestPath').value;
         if (!m) { alert('Please set your Manifests folder in Settings first.'); return; }
@@ -936,7 +981,7 @@ const appCtrl = {
 
             issues.forEach(item => {
                 const row = document.createElement('div');
-                const sev = item.severity; // 'error' | 'warning'
+                const sev = item.severity; 
                 row.className = `manifest-result-row validator-row severity-${sev}`;
                 const issueHtml = item.issues.map(iss => `<div class="validator-issue">${iss}</div>`).join('');
                 row.innerHTML = `
@@ -965,16 +1010,35 @@ const appCtrl = {
     closeManifestValidator(evt) {
         if (evt && evt.target !== document.getElementById('manifestValidatorOverlay')) return;
         document.getElementById('manifestValidatorOverlay').classList.add('hidden');
-    }
+    },
+    
+    
+    
+    async openReadme() {
+        document.getElementById('modalOverlay').classList.remove('hidden');
+        document.getElementById('readmeModal').classList.remove('hidden');
+        
+        try {
+            const readme = await window.pywebview.api.get_readme();
+            document.getElementById('readmeContent').textContent = readme;
+        } catch (e) {
+            document.getElementById('readmeContent').textContent = "Failed to load documentation.";
+        }
+    },
+
+    closeReadme() {
+        document.getElementById('modalOverlay').classList.add('hidden');
+        document.getElementById('readmeModal').classList.add('hidden');
+    },
 };
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+
 window.addEventListener('pywebviewready', () => {
     appCtrl.init();
     
-    // Automatically fetch library on boot
+    
     setTimeout(() => appCtrl.refreshLibrary(), 500);
-    // Open home by default
+    
     setTimeout(() => appCtrl.switchNav('home'), 100);
 
     setInterval(async () => {

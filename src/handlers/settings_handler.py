@@ -1,34 +1,12 @@
-"""
-SettingsHandler
----------------
-Manages application settings: loading from disk, saving to disk,
-directory browsing, and the Reset / Restore actions exposed to the
-frontend.
-"""
-
 import os
 import json
 import webview
-
 from game_data import GameDataManager
-
-
 class SettingsHandler:
-    """Mixin — depends on PollingHandler (_log, warn_user)."""
-
-    CONFIG_FILE: str = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..", "relinker_config.json"
-    )
-
-    # ── Read ─────────────────────────────────────────────────────────────────
-
+    import sys
+    _EXE_PATH = os.path.dirname(sys.executable) if hasattr(sys, '_MEIPASS') else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    CONFIG_FILE: str = os.path.join(_EXE_PATH, "relinker_config.json")
     def get_initial_paths(self) -> dict:
-        """
-        Returns the saved settings config as a plain dict (pywebview
-        serialises it to JSON automatically for the JS caller).
-
-        Falls back to sane defaults when no config file exists.
-        """
         config = {
             "manifestPath": GameDataManager.DEFAULT_MANIFESTS_PATH,
             "gamesPath":    "",
@@ -42,11 +20,7 @@ class SettingsHandler:
             except Exception as exc:
                 self.warn_user(f"Could not read saved settings: {exc}")
         return config
-
-    # ── Write ────────────────────────────────────────────────────────────────
-
     def save_settings(self, manifest_path: str, games_path: str, use_default: bool):
-        """Persists the three path settings to the JSON config file."""
         config = {
             "manifestPath": manifest_path,
             "gamesPath":    games_path,
@@ -57,14 +31,7 @@ class SettingsHandler:
                 json.dump(config, f, indent=4)
         except Exception as exc:
             self.warn_user(f"Failed to save settings: {exc}")
-
-    # ── Browse ───────────────────────────────────────────────────────────────
-
     def browse_directory(self, title: str) -> str:
-        """
-        Opens a native folder-picker dialog.
-        Returns the selected path string, or "" on cancel / error.
-        """
         if not self._window:
             return ""
         try:

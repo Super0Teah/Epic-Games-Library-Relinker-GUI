@@ -1,31 +1,9 @@
-"""
-ManifestToolsHandler
---------------------
-Backend API for the Manifest Management Tools (#14):
-  - Manifest Cleanup  (orphaned + duplicate-pending detection)
-  - Manifest Validator
-  - File deletion
-  - Prediction engine (used by the Fix / Link modals)
-"""
-
 import re
 import json
 import difflib
-
 from manifest_capture import ManifestCapture
-
-
 class ManifestToolsHandler:
-    """Mixin — depends on PollingHandler (_log, warn_user)."""
-
-    # ── Manifest Cleanup ──────────────────────────────────────────────────────
-
     def get_manifest_cleanup_data(self, manifest_path: str) -> str:
-        """
-        Returns a JSON payload with two lists (safe, read-only):
-            orphans       — .item files whose InstallLocation no longer exists
-            pending_dupes — .item files in Pending\\ that duplicate a root manifest
-        """
         manifest_path = manifest_path.strip()
         if not manifest_path or not __import__("os").path.exists(manifest_path):
             return json.dumps({"error": "Invalid manifests folder."})
@@ -36,14 +14,7 @@ class ManifestToolsHandler:
             return json.dumps({"orphans": orphans, "pending_dupes": pending_dupes})
         except Exception as exc:
             return json.dumps({"error": str(exc)})
-
-    # ── Manifest Validator ────────────────────────────────────────────────────
-
     def get_manifest_validate_data(self, manifest_path: str) -> str:
-        """
-        Returns a JSON payload with a list of manifests that have validation
-        issues (missing fields, broken paths, etc.).  Safe, read-only.
-        """
         manifest_path = manifest_path.strip()
         if not manifest_path or not __import__("os").path.exists(manifest_path):
             return json.dumps({"error": "Invalid manifests folder."})
@@ -53,14 +24,7 @@ class ManifestToolsHandler:
             return json.dumps({"issues": issues})
         except Exception as exc:
             return json.dumps({"error": str(exc)})
-
-    # ── File deletion ─────────────────────────────────────────────────────────
-
     def delete_manifest_file(self, item_path: str) -> str:
-        """
-        Deletes a single .item manifest file.
-        Returns JSON: {ok: bool, msg: str}
-        """
         try:
             ok, msg = ManifestCapture.delete_manifest(item_path)
             tag     = "SUCCESS" if ok else "ERROR"
@@ -69,50 +33,30 @@ class ManifestToolsHandler:
         except Exception as exc:
             self._log(f"ERROR: delete_manifest_file: {exc}", "ERROR")
             return json.dumps({"ok": False, "msg": str(exc)})
-
-    # ── Fix / Link prediction engine ──────────────────────────────────────────
-
     def get_predictions(self, manifest_json: str, game_list_json: str) -> str:
-        """
-        Given a manifest dict and a list of game-folder dicts, returns the
-        best-matching and closest-matching indices along with the fuzzy ratio.
-
-        JSON output: {best: int, closest: int, ratio: float}
-        """
         games = json.loads(game_list_json)
         if not manifest_json or manifest_json == "null":
             return json.dumps({"best": -1, "closest": -1, "ratio": 0})
-
         m = json.loads(manifest_json)
-
         def _norm(txt: str) -> str:
             return re.sub(r"[^a-z0-9]", "", str(txt).lower())
-
         dl_n = _norm(m.get("display_name", ""))
         if_n = _norm(m.get("file_name", "").replace(".item", ""))
-
         best    = -1
         closest = -1
         highest = 0.0
-
         for i, g in enumerate(games):
             fn_n = _norm(g["name"])
-
-            # Substring match — high confidence, stop immediately
             if (dl_n and (dl_n in fn_n or fn_n in dl_n)) or \
                (if_n and len(if_n) >= 3 and (if_n in fn_n or fn_n in if_n)):
                 best = i
                 break
-
-            # Fuzzy ratio — track the highest above threshold
             r1      = difflib.SequenceMatcher(None, dl_n, fn_n).ratio() if dl_n else 0
             r2      = difflib.SequenceMatcher(None, if_n, fn_n).ratio() if if_n else 0
             m_ratio = max(r1, r2)
             if m_ratio > highest and m_ratio > 0.3:
                 highest = m_ratio
                 closest = i
-
         if best != -1:
-            closest = -1   # a definitive match overrides the fuzzy suggestion
-
+            closest = -1   
         return json.dumps({"best": best, "closest": closest, "ratio": highest})

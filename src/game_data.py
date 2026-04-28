@@ -18,10 +18,12 @@ class GameData:
 class GameDataManager:
 
     DEFAULT_MANIFESTS_PATH: str = "C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests"
+    LAUNCHER_INSTALLED_DAT: str = "C:\\ProgramData\\Epic\\UnrealEngineLauncher\\LauncherInstalled.dat"
     MANIFEST_BACKUP_FOLDER_NAME: str = "_MANIFEST_BACKUPS"
     GAME_MANIFEST_FOLDER_NAME: str = ".egstore"
     GAME_MANIFEST_FILE_TYPE: str = ".manifest"
     LAUNCHER_MANIFEST_FILE_TYPE: str = ".item"
+    MANCPN_FILE_TYPE: str = ".mancpn"
     STAGING_FOLDER_NAME: str = "bps"
     SUPPORTED_LAUNCHER_MANIFEST_VERSIONS: list[int] = [0,]
 
@@ -92,7 +94,6 @@ class GameDataManager:
                 game_folder = FileDirectory(dirname, entry_path)
                 manifest_folder = FileDirectory(self.GAME_MANIFEST_FOLDER_NAME, game_manifest_folder_path)
 
-                print(f"INFO: Adding \"{dirname}\"")
                 game_data_list.append(GameData(game_folder, manifest_folder, manifest_file_list))
 
         return game_data_list

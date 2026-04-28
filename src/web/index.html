@@ -5,19 +5,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epic Games Relinker GUI</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.2.0">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        
+        [data-mode="light"] .btn, 
+        [data-mode="light"] button { 
+            color: #050a14 !important; 
+        }
+        [data-mode="light"] .btn-primary, 
+        [data-mode="light"] .btn-success, 
+        [data-mode="light"] .btn-danger,
+        [data-mode="light"] .bg-accent,
+        [data-mode="light"] .bg-success,
+        [data-mode="light"] .bg-danger,
+        [data-mode="light"] .bg-blue,
+        [data-mode="light"] .bg-green,
+        [data-mode="light"] .bg-purple,
+        [data-mode="light"] .bg-orange,
+        [data-mode="light"] .nav-btn.active {
+            color: #ffffff !important;
+        }
+        [data-mode="light"] .btn:disabled, 
+        [data-mode="light"] button:disabled {
+            color: #64748b !important;
+            background: rgba(0,0,0,0.06) !important;
+        }
+    </style>
 </head>
 
 <body>
     <div class="background-blob"></div>
     <div class="background-blob blob-2"></div>
 
-    <!-- ══ Settings Overlay Panel ══ -->
+    
     <div id="settingsOverlay" class="settings-overlay hidden" onclick="appCtrl.closeSettings(event)">
         <div class="settings-panel glass-card" id="settingsPanel">
 
-            <!-- Header -->
+            
             <div class="settings-header">
                 <div class="settings-title">
                     <span class="settings-icon">⚙</span>
@@ -28,7 +53,7 @@
 
             <div class="settings-body">
 
-                <!-- Paths Section -->
+                
                 <div class="settings-section">
                     <div class="settings-section-label">Paths</div>
 
@@ -51,39 +76,51 @@
                     <div class="path-row mt-2">
                         <label>Games Folder</label>
                         <div class="input-group">
-                            <input type="text" id="gamesPath" placeholder="Select your games folder..." readonly>
+                            <input type="text" id="gamesPath" placeholder="Select your games folder..." oninput="appCtrl.syncGamesPath('settings')">
                             <button onclick="appCtrl.browseGames()">Browse</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Appearance Section -->
+                
                 <div class="settings-section">
-                    <div class="settings-section-label">Appearance</div>
+                    <div class="settings-section-label">
+                        <span class="group-dot blue"></span>Appearance
+                    </div>
 
                     <div class="select-row">
-                        <label>Theme</label>
+                        <label>Theme Selection</label>
                         <div class="theme-selector">
                             <select id="themeSelect" onchange="appCtrl.applyTheme(this.value)">
-                                <option value="Dark Blue">Dark Blue</option>
-                                <option value="Midnight Purple">Midnight Purple</option>
-                                <option value="AMOLED Black">AMOLED Black</option>
-                                <option value="Hacker Green">Hacker Green</option>
-                                <option value="Slate Gray">Slate Gray</option>
-                                <option value="Crimson Dark">Crimson Dark</option>
-                                <option value="Ocean Teal">Ocean Teal</option>
-                                <option value="Warm Ember">Warm Ember</option>
-                                <option value="Arctic Light">Arctic Light</option>
-                                <option value="Sepia Warm">Sepia Warm</option>
+                                <option value="Dark Blue">Blue</option>
+                                <option value="Midnight Purple">Purple</option>
+                                <option value="Hacker Green">Green</option>
+                                <option value="Crimson Dark">Red</option>
+                                <option value="Ocean Teal">Teal</option>
+                                <option value="Warm Ember">Amber</option>
+                                <option value="Slate Gray">Gray</option>
+                                <option value="Cyber Rose">Rose</option>
+                                <option value="Nordic Frost">Frost</option>
+                                <option value="AMOLED Black">Black/White</option>
                             </select>
                             <div class="theme-preview" id="themePreview"></div>
                         </div>
                     </div>
+
+                    <div class="toggle-row mt-2">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="displayModeToggle" onchange="appCtrl.onModeToggle()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Light Mode</span>
+                    </div>
                 </div>
 
-                <!-- Dev Tools -->
+                
                 <div class="settings-section">
-                    <div class="settings-section-label">Developer</div>
+                    <div class="settings-section-label">
+                        <span class="group-dot"></span>Developer
+                    </div>
                     <div class="toggle-row">
                         <label class="toggle-switch">
                             <input type="checkbox" id="debugMode" onchange="appCtrl.onDebugToggle()">
@@ -92,11 +129,16 @@
                         <span class="toggle-label">Debug Mode <span class="badge-warn">DEV</span></span>
                     </div>
                     <p class="settings-hint">Logs full Python tracebacks to the console on any error.</p>
+                    <button class="btn btn-full bg-border mt-2" onclick="window.pywebview.api.open_dev_tools()" style="font-size: 11px; padding: 6px;">
+                        Open Developer Console (Inspect)
+                    </button>
                 </div>
 
-                <!-- Settings Management -->
+                
                 <div class="settings-section">
-                    <div class="settings-section-label">Settings Management</div>
+                    <div class="settings-section-label">
+                        <span class="group-dot warn"></span>Settings Management
+                    </div>
                     <div class="settings-danger-row">
                         <button class="btn-settings-action btn-settings-restore" onclick="appCtrl.restoreSettings()" style="display:flex; align-items:center; gap:6px; justify-content:center;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -113,9 +155,11 @@
                     </p>
                 </div>
 
-                <!-- Credits -->
+                
                 <div class="settings-section credits-section">
-                    <div class="settings-section-label">Credits</div>
+                    <div class="settings-section-label">
+                        <span class="group-dot success"></span>Credits
+                    </div>
                     <div class="credits-card">
                         <div class="credit-row main-credit">
                             <div class="credit-avatar accent">S</div>
@@ -129,7 +173,7 @@
                             <div class="credit-avatar muted">S</div>
                             <div>
                                 <div class="credit-name">Super0Teah</div>
-                                <div class="credit-role">GUI Dev &amp; Fix, Link and Capture Features Dev</div>
+                                <div class="credit-role">GUI Dev &amp; Fix, Link, Capture, and Auto Fix Features Dev</div>
                             </div>
                         </div>
                         <div class="credit-row">
@@ -139,146 +183,189 @@
                                 <div class="credit-role">Contributor to Original Project</div>
                             </div>
                         </div>
-                        <div class="credits-footer">Epic Games Relinker GUI· v1.0.0</div>
+                        <div class="credits-footer">Epic Games Relinker GUI · v2.0.0</div>
                     </div>
                 </div>
 
-            </div><!-- /settings-body -->
+            </div>
         </div>
     </div>
 
-    <!-- ══ Main App ══ -->
-    <div id="app" class="app-root" style="display: flex; flex-direction: row; padding: 0;">
+    
+    <div id="app" class="app-root">
 
-        <!-- LEFT SIDEBAR -->
-        <div class="sidebar glass-card" style="width: 200px; display: flex; flex-direction: column; flex-shrink: 0; border-radius: 0; border-top: none; border-bottom: none; border-left: none; border-bottom-right-radius: 20px; height: max-content; padding-bottom: 20px; z-index: 10; border-bottom: 1px solid var(--border);">
+        
+        <div class="sidebar">
             
-            <div class="sidebar-header" style="padding: 20px 16px; border-bottom: 1px solid var(--border); text-align: center;">
-                <h1 class="app-title" style="font-size: 14px; letter-spacing: 1px; margin: 0;">Epic Games Relinker GUI</h1>
-                <span class="app-version" style="font-size: 11px;">v1.3.0</span>
+            <div class="sidebar-header">
+                <h1 class="app-title">Epic Games Relinker GUI</h1>
+                <span class="app-version">v2.0.0</span>
             </div>
 
-                <div class="sidebar-nav" style="padding: 20px 12px 10px 12px; display: flex; flex-direction: column; gap: 8px;">
-                    <button class="nav-btn active" onclick="appCtrl.switchNav('home')" id="nav-home" style="padding: 12px 16px; display: flex; gap: 10px; align-items: center; justify-content: center; border-radius: var(--radius-btn); background: rgba(255,255,255,0.1); color: white; border: none; cursor: pointer; width: 100%;">
+                <div class="sidebar-nav">
+                    <button class="nav-btn active" onclick="appCtrl.switchNav('home')" id="nav-home">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                         Home
                     </button>
-                    <button class="nav-btn" onclick="appCtrl.switchNav('tools')" id="nav-tools" style="padding: 12px 16px; display: flex; gap: 10px; align-items: center; justify-content: center; border-radius: var(--radius-btn); background: transparent; color: var(--muted); border: none; cursor: pointer; width: 100%;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-                        Tools &amp; Logs
-                    </button>
-                    <button class="nav-btn" onclick="appCtrl.switchNav('library')" id="nav-library" style="padding: 12px 16px; display: flex; gap: 10px; align-items: center; justify-content: center; border-radius: var(--radius-btn); background: transparent; color: var(--muted); border: none; cursor: pointer; width: 100%;">
+                    <button class="nav-btn" onclick="appCtrl.switchNav('library')" id="nav-library">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" ry="2"></rect><path d="M6 12h4"></path><path d="M8 10v4"></path><path d="M15 13h.01"></path><path d="M18 11h.01"></path></svg>
-                        Games Library
+                        Library Fixer
                     </button>
+                    <button class="nav-btn" onclick="appCtrl.switchNav('tools')" id="nav-tools">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                        Advanced Tools & Logs
+                    </button>
+                </div>
+
+                <div class="sidebar-footer">
+                    <button class="nav-btn-alt" onclick="appCtrl.openReadme()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                    Documentation
+                </button>
                 </div>
             </div>
 
-            <!-- MAIN CONTENT AREA -->
-            <div class="main-content" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+            
+            <div class="main-content">
 
-                <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 16px 20px 20px 20px; overflow-y: auto;">
+                <div class="main-viewport">
                 
-                <!-- HOME VIEW -->
-                <div id="homeView" class="app-view" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-                    <div class="glass-card p-3 mb-3" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 20px;">
-                        <h2 style="color: var(--accent); margin-top: 0; margin-bottom: 20px;">Home / README</h2>
-                        <div id="readmeContent" style="white-space: pre-wrap; font-family: 'Consolas', monospace; font-size: 13px; color: var(--text); padding-right: 10px;">
-                            Loading...
+                <div id="homeView" class="app-view">
+                    <div class="welcome-card">
+                        
+                        <div class="welcome-icon">🎮</div>
+                        <h1 class="welcome-title">Welcome to Epic Games Relinker GUI</h1>
+                        <p class="welcome-subtitle">
+                            A suite to intelligently relink, move, and fix your 
+                            Epic Games library with a single click.
+                        </p>
+
+                        <div class="quick-start-grid">
+                            
+                            <div class="glass-card start-step">
+                                <div class="step-label blue">
+                                    <span class="step-badge">Step 1</span>
+                                    <span class="group-dot blue"></span>Configure Paths
+                                </div>
+                                <p class="step-desc">
+                                    Click the <b>Gear Icon</b> (bottom right) to set your Games folder and Epic Manifests path.
+                                </p>
+                            </div>
+
+                            <div class="glass-card start-step">
+                                <div class="step-label success">
+                                    <span class="step-badge">Step 2</span>
+                                    <span class="group-dot success"></span>Sync Library
+                                </div>
+                                <p class="step-desc">
+                                    Navigate to the <b>Library Hub</b> and hit <b>Refresh</b> to detect your installed games.
+                                </p>
+                            </div>
+
                         </div>
+
+                        <div class="glass-card mt-3" style="padding: 24px; border: 1px dashed var(--accent); opacity: 0.85;">
+                            <p style="font-size: 14px; margin: 0; color: var(--text);">
+                                <span style="color: var(--accent); font-weight: 800;">PRO TIP:</span> 
+                                Remember, switching to your pistol is always faster than reloading.
+                            </p>
+                        </div>
+
+                        <div style="margin-top: 40px; font-size: 12px; opacity: 0.5;">
+                            Need help? Click the <b style="cursor:help; color:var(--accent);" onclick="appCtrl.openHelp()">?</b> icon for the interactive guide.
+                        </div>
+
                     </div>
                 </div>
 
-                <!-- TOOLS VIEW -->
-                <div id="toolsView" class="app-view hidden" style="display: flex; flex: 1; gap: 20px; min-height: 0; justify-content: flex-start; position: relative;">
                 
-                <!-- Actions Column -->
-                <div class="actions-column" style="width: 320px; flex-shrink: 0;">
+                <div id="toolsView" class="app-view flex-row gap-3 hidden">
+                
+                
+                <div class="actions-column">
 
-                <!-- Group 1: Relinking & Moving -->
+                
                 <div class="action-group glass-card" id="group-relink">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('group-relink')">
                         <div class="group-title">
                             <span class="group-dot accent"></span>
-                            Relinking &amp; Moving
+                            Bulk Utilities
                         </div>
                         <span class="group-chevron collapsed" id="chevron-group-relink">▾</span>
                     </div>
-                    <div class="action-group-body collapsed" id="body-group-relink">
+                    <div class="action-group-body collapsed" id="body-group-relink" onclick="event.stopPropagation()">
                         <div class="btn-grid">
-                            <button class="btn bg-accent" onclick="appCtrl.runAction('relink')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                            <button class="btn bg-accent flex-center gap-2" onclick="appCtrl.runAction('relink')">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.4l5.67-5.67"/></svg>
-                                Relink Games
+                                Relink All
                             </button>
-                            <button class="btn bg-accent2" onclick="appCtrl.runAction('move')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                            <button class="btn bg-accent2 flex-center gap-2" onclick="appCtrl.runAction('move')">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                                 Move Games
                             </button>
                         </div>
-                        <button class="btn btn-full bg-blue mt-2" onclick="appCtrl.runAction('move_pc')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                    </div>
+                </div>
+
+                
+                <div class="action-group glass-card" id="group-manifest">
+                    <div class="action-group-header" onclick="appCtrl.toggleGroup('group-manifest')">
+                        <div class="group-title">
+                            <span class="group-dot warn"></span>
+                            Maintenance
+                        </div>
+                        <span class="group-chevron collapsed" id="chevron-group-manifest">▾</span>
+                    </div>
+                    <div class="action-group-body collapsed" id="body-group-manifest" onclick="event.stopPropagation()">
+                        <div class="btn-grid">
+                            <button class="btn bg-amber flex-center gap-2" onclick="appCtrl.openManifestCleanup()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                                Cleanup
+                            </button>
+                            <button class="btn bg-blue flex-center gap-2" onclick="appCtrl.openManifestValidator()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                                Validator
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div class="action-group glass-card" id="group-capture">
+                    <div class="action-group-header" onclick="appCtrl.toggleGroup('group-capture')">
+                        <div class="group-title">
+                            <span class="group-dot success"></span>
+                            Advanced Support
+                        </div>
+                        <span class="group-chevron collapsed" id="chevron-group-capture">▾</span>
+                    </div>
+                    <div class="action-group-body collapsed" id="body-group-capture" onclick="event.stopPropagation()">
+                        <div class="btn-grid">
+                            <button class="btn bg-success flex-center gap-2" onclick="appCtrl.runAction('capture')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                                Capture
+                            </button>
+                            <button class="btn bg-purple flex-center gap-2" onclick="appCtrl.runAction('link')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                Manual Link
+                            </button>
+                        </div>
+                        <button class="btn btn-full bg-amber mt-2 flex-center gap-2" onclick="appCtrl.runAction('fix')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                            Advanced Manual Fix
+                        </button>
+                        <button class="btn btn-full bg-blue mt-1 flex-center gap-2" onclick="appCtrl.runAction('move_pc')">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M7 21l-4-4 4-4M3 17h18M21 7H3"/></svg>
                             Move Between PCs
                         </button>
                     </div>
                 </div>
 
-                <!-- Group 2: Capture, Link & Fix -->
-                <div class="action-group glass-card" id="group-capture">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('group-capture')">
-                        <div class="group-title">
-                            <span class="group-dot success"></span>
-                            Capture, Link &amp; Fix
-                        </div>
-                        <span class="group-chevron collapsed" id="chevron-group-capture">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-group-capture">
-                        <div class="btn-grid">
-                            <button class="btn bg-success" onclick="appCtrl.runAction('capture')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-                                Capture
-                            </button>
-                            <button class="btn bg-purple" onclick="appCtrl.runAction('link')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                Link
-                            </button>
-                        </div>
-                        <button class="btn btn-full bg-amber mt-2" onclick="appCtrl.runAction('fix')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                            Fix Manifest Link
-                        </button>
-                        <button class="btn btn-full bg-orange mt-1" onclick="appCtrl.runAction('fix_dlc')" style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                            Fix DLC Link
-                        </button>
-                    </div>
-                </div>
+            </div>
 
-                <!-- Group 3: Manifest Tools (#14) -->
-                <div class="action-group glass-card" id="group-manifest">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('group-manifest')">
-                        <div class="group-title">
-                            <span class="group-dot warn"></span>
-                            Manifest Tools
-                        </div>
-                        <span class="group-chevron collapsed" id="chevron-group-manifest">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-group-manifest">
-                        <button class="btn btn-full bg-amber" onclick="appCtrl.openManifestCleanup()" style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
-                            Manifest Cleanup
-                        </button>
-                        <button class="btn btn-full bg-blue mt-1" onclick="appCtrl.openManifestValidator()" style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                            Manifest Validator
-                        </button>
-                    </div>
-                </div>
-
-            </div><!-- /actions-column -->
-
-            <!-- Log Panel (Side-by-Side) -->
-            <div class="glass-card terminal" id="terminalPanel" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-                <div class="terminal-header" style="cursor: default;">
+            
+            <div class="glass-card terminal" id="terminalPanel">
+                <div class="terminal-header">
                     <div class="terminal-title">
                         <div class="terminal-dot red"></div>
                         <div class="terminal-dot yellow"></div>
@@ -286,7 +373,7 @@
                         <span>Output Log</span>
                         <span class="terminal-line-count" id="terminalLineCount"></span>
                     </div>
-                    <div class="terminal-header-right" style="gap: 6px;">
+                    <div class="terminal-header-right">
                         <button class="btn-small" onclick="appCtrl.copyLog()">Copy</button>
                         <button class="btn-small" onclick="appCtrl.saveLog()">Save</button>
                         <button class="btn-small" onclick="appCtrl.openLogFolder()">Folder</button>
@@ -299,29 +386,29 @@
                         <span class="log-text">Ready. Select an action from the left.</span>
                     </div>
                 </div>
-            </div><!-- /terminal -->
+            </div>
 
-            <!-- Easter egg now in sidebar footer panel -->
+            
 
-                </div><!-- /toolsView -->
+                </div>
 
-                <!-- Library Hub View -->
-        <div id="libraryView" class="app-view hidden" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-            <div class="glass-card p-3 mb-3 d-flex" style="justify-content: space-between; align-items: center; padding: 15px;">
-                <h3 style="margin: 0; color: var(--text)">Games Library</h3>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn bg-accent" onclick="appCtrl.refreshLibrary()" style="font-size: 0.9em; padding: 8px 14px; font-weight: 600; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display:flex; align-items:center; gap:6px;">
+                
+        <div id="libraryView" class="app-view hidden">
+            <div class="library-header-bar">
+                <h3>Library Fixer</h3>
+                <div class="header-actions">
+                    <button class="btn bg-accent" onclick="appCtrl.refreshLibrary()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.4l5.67-5.67"/></svg>
                         Refresh Library
                     </button>
-                    <button class="btn bg-orange" onclick="appCtrl.restartLauncher()" style="font-size: 0.9em; padding: 8px 14px; font-weight: 600; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display:flex; align-items:center; gap:6px;">
+                    <button class="btn bg-orange" onclick="appCtrl.restartLauncher()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
                         Restart Launcher
                     </button>
                 </div>
             </div>
             
-            <div class="glass-card" style="flex-grow: 1; overflow-y: auto; padding: 15px;">
+            <div class="glass-card library-container">
                 
                 <div class="action-group" id="lib-group-main">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('lib-group-main')">
@@ -333,16 +420,16 @@
                         <span class="group-chevron collapsed" id="chevron-lib-group-main">▾</span>
                     </div>
                     <div class="action-group-body collapsed" id="body-lib-group-main">
-                        <div id="libraryGrid" class="library-grid" style="margin-bottom: 20px;">
-                            <!-- Game items will be injected here -->
-                            <div class="text-center muted" style="padding: 40px;">
+                        <div id="libraryGrid" class="library-grid">
+                            
+                            <div class="library-empty-notice">
                                 Configure your paths in Settings and click Refresh to view your library.
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="action-group hidden" id="dlcSection" style="margin-top: 15px;">
+                <div class="action-group hidden" id="dlcSection">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('lib-group-dlc')">
                         <div class="group-title">
                             <span class="group-dot purple"></span>
@@ -353,16 +440,16 @@
                     </div>
                     <div class="action-group-body collapsed" id="body-lib-group-dlc">
                         <div id="dlcGrid" class="library-grid">
-                            <!-- DLC items will be injected here -->
+                            
                         </div>
                     </div>
                 </div>
 
-                <!-- Pending Manifests section -->
+                
                 <div class="action-group hidden" id="pendingSection" style="margin-top: 15px;">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('lib-group-pending')">
                         <div class="group-title">
-                            <span class="group-dot" style="background: #c084fc;"></span>
+                            <span class="group-dot purple"></span>
                             Pending Manifests
                             <span id="pendingSectionCount" class="lib-section-count"></span>
                         </div>
@@ -374,38 +461,55 @@
                             cancelled downloads or interrupted installs. Use <b>Manifest Cleanup → Duplicate Pending</b> to remove duplicates.
                         </p>
                         <div id="pendingGrid" class="library-grid" style="margin-top: 10px;">
-                            <!-- Pending items injected here -->
+                            
                         </div>
                     </div>
                 </div>
 
             </div>
-                </div><!-- /libraryView -->
+                </div>
 
-                </div><!-- /inner content wrapper -->
-                </div><!-- /main-content -->
-    </div><!-- /app -->
+                </div>
+                </div>
+    </div>
 
 
-    <!-- ══════════════════════════════════════
-         MODALS
-    ══════════════════════════════════════ -->
-    <div id="modalOverlay" class="modal-overlay hidden">
+    
+    <div id="modalOverlay" class="modal-overlay hidden" onclick="appCtrl.closeModals(event)">
 
-        <!-- Capture Modal -->
-        <div id="captureModal" class="modal-content glass-card hidden">
-            <h3 id="captureModalTitle" style="color:var(--success)">Capture Missing Manifests</h3>
+        
+        <div id="captureModal" class="modal-content glass-card hidden" onclick="event.stopPropagation()">
+            <h3 id="captureModalTitle" class="success-text">Capture Missing Manifests</h3>
             <p id="captureModalMsg" class="subtitle text-center"></p>
             <p class="warning-text">Note: "Install failed" messages in the Epic Launcher are normal — ignore them.</p>
-            <div class="modal-actions mt-3" style="justify-content: center; gap: 10px;">
+            <div class="modal-actions mt-3 flex-center gap-3">
                 <button class="btn bg-success" onclick="appCtrl.confirmCapture('ok')">✓ Done</button>
                 <button class="btn bg-border" onclick="appCtrl.confirmCapture('skip')">Skip</button>
                 <button class="btn bg-danger" onclick="appCtrl.confirmCapture('abort')">✕ Abort All</button>
             </div>
         </div>
 
-        <!-- Move Modal -->
-        <div id="moveModal" class="modal-content glass-card hidden">
+        
+        <div id="readmeModal" class="modal-content glass-card readme-modal hidden" onclick="event.stopPropagation()">
+            <div class="modal-header-bar">
+                <div class="modal-header-left">
+                    <div class="modal-header-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="modal-header-title">Project Documentation</h3>
+                        <p class="modal-header-subtitle">README.md • System Guide</p>
+                    </div>
+                </div>
+                <button class="btn bg-border" onclick="appCtrl.closeReadme()" style="height: 32px; font-size: 12px; padding: 0 12px;">Close</button>
+            </div>
+            <div class="readme-body">
+                <div id="readmeContent" class="readme-text">
+                    Loading documentation...
+                </div>
+            </div>
+        </div>
+        <div id="moveModal" class="modal-content glass-card hidden" onclick="event.stopPropagation()">
             <h3 style="color:var(--blue)">→ Move Games</h3>
             <p class="subtitle">Select games to move:</p>
             <div class="list-container" id="moveGameList"></div>
@@ -420,8 +524,8 @@
             </div>
         </div>
 
-        <!-- Link Modal -->
-        <div id="linkModal" class="modal-content glass-card hidden">
+        
+        <div id="linkModal" class="modal-content glass-card hidden" onclick="event.stopPropagation()">
             <h3 id="linkModalTitle" style="color:var(--purple)">⬡ Link Pending Manifest</h3>
             <div class="info-box" id="linkModalInfo"></div>
             <p class="warning-text">⚠ Linking to the wrong folder will corrupt the launcher entry. Abort if unsure.</p>
@@ -435,8 +539,8 @@
             </div>
         </div>
 
-        <!-- Fix Modal -->
-        <div id="fixModal" class="modal-content glass-card large hidden">
+        
+        <div id="fixModal" class="modal-content glass-card large hidden" onclick="event.stopPropagation()">
             <h3 id="fixModalTitle" class="text-amber">✦ Fix Manifest Link</h3>
             <p id="fixModalSubtitle" class="subtitle text-center"></p>
             <div class="split-pane">
@@ -456,14 +560,14 @@
             </div>
         </div>
 
-    </div><!-- /modalOverlay -->
+    </div>
 
-    <!-- ══ Manifest Cleanup Modal ══ -->
+    
     <div id="manifestCleanupOverlay" class="modal-overlay hidden" onclick="appCtrl.closeManifestCleanup(event)">
         <div class="modal-content glass-card manifest-modal" id="manifestCleanupModal">
             <h3 class="text-amber">🧹 Manifest Cleanup</h3>
 
-            <!-- ⚠ Warning banner -->
+            
             <div class="cleanup-warning-banner">
                 <span class="cleanup-warning-icon">⚠</span>
                 <div>
@@ -473,7 +577,7 @@
                 </div>
             </div>
 
-            <!-- Tab switcher -->
+            
             <div class="cleanup-tabs">
                 <button class="cleanup-tab active" id="cleanupTabOrphans" onclick="appCtrl.cleanupSwitchTab('orphans')">
                     Orphaned Manifests <span class="cleanup-tab-count" id="cleanupCountOrphans"></span>
@@ -483,7 +587,7 @@
                 </button>
             </div>
 
-            <!-- Orphaned tab pane -->
+            
             <div id="cleanupPaneOrphans" class="cleanup-pane">
                 <p class="cleanup-pane-desc muted">
                     These <b>.item</b> files point to game folders that no longer exist on disk — ghost entries that cause the launcher to show games it cannot find.
@@ -493,7 +597,7 @@
                 </div>
             </div>
 
-            <!-- Pending duplicates tab pane -->
+            
             <div id="cleanupPanePending" class="cleanup-pane hidden">
                 <p class="cleanup-pane-desc muted">
                     These <b>.item</b> files are in the <code>Pending\</code> subfolder but the same game already has a manifest in the main folder. They are leftover from cancelled downloads and can be safely deleted.
@@ -512,7 +616,7 @@
         </div>
     </div>
 
-    <!-- ══ Manifest Validator Modal ══ -->
+    
     <div id="manifestValidatorOverlay" class="modal-overlay hidden" onclick="appCtrl.closeManifestValidator(event)">
         <div class="modal-content glass-card manifest-modal" id="manifestValidatorModal">
             <h3 style="color: var(--blue);">✔ Manifest Validator</h3>
@@ -528,169 +632,103 @@
         </div>
     </div>
 
-    <!-- ══ Help / Guide Overlay ══ -->
-    <div id="helpOverlay" class="modal-overlay hidden" onclick="appCtrl.closeHelp(event)">
-        <div class="modal-content glass-card" id="helpPanel" style="width: 520px; max-width: 90vw; max-height: 80vh; padding: 0; display: flex; flex-direction: column;">
+    
+    <div id="helpOverlay" class="help-overlay hidden" onclick="appCtrl.closeHelp(event)">
+        <div class="help-content glass-card" id="helpPanel" onclick="event.stopPropagation()">
             
-            <div class="settings-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;">
-                <div class="settings-title" style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text);">
-                    <span class="settings-icon" style="color: var(--accent); font-size: 16px;">?</span>
+            <div class="settings-header">
+                <div class="settings-title">
+                    <span class="settings-icon">?</span>
                     <span>How to Use</span>
                 </div>
-                <button class="settings-close-btn" onclick="appCtrl.closeHelp()" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--muted); border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;">✕</button>
+                <button class="settings-close-btn" onclick="appCtrl.closeHelp()">✕</button>
             </div>
 
-            <div class="settings-body" style="padding: 16px; overflow-y: auto; flex: 1; min-height: 0;">
+            <div class="settings-body">
                 
-                <div class="action-group" id="help-relink" style="margin-bottom: 10px;">
+                
+                <div class="action-group" id="help-relink">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('help-relink')">
-                        <div class="group-title"><span class="group-dot blue"></span>Relink Games</div>
+                        <div class="group-title"><span class="group-dot blue"></span>Relink & Move</div>
                         <span class="group-chevron collapsed" id="chevron-help-relink">▾</span>
                     </div>
                     <div class="action-group-body collapsed" id="body-help-relink">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Close Epic Launcher.</li>
-                            <li style="margin-bottom: 4px;">Ensure the <b>Games Folder</b> in Settings points to your library's new drive letter.</li>
-                            <li>Click <b>Start Relink</b>. The tool will automatically batch-update all manifests to match the current folder.</li>
+                        <p>Relink All</p>
+                        <ol>
+                            <li>Point <b>Games Folder</b> to your new library location.</li>
+                            <li>Click <b>Relink All</b> to batch-patch all manifests at once.</li>
+                        </ol>
+                        <p>Move Games</p>
+                        <ol>
+                            <li>Select games, choose a destination, and click <b>Move</b>. The tool handles the file transfer and manifest patching.</li>
                         </ol>
                     </div>
                 </div>
 
-                <div class="action-group" id="help-move" style="margin-bottom: 10px;">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-move')">
-                        <div class="group-title"><span class="group-dot blue"></span>Move Games</div>
-                        <span class="group-chevron collapsed" id="chevron-help-move">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-move">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Close Epic Launcher entirely.</li>
-                            <li style="margin-bottom: 4px;">Select the games you want to move from the 'Move Games' list.</li>
-                            <li>Click 'Browse' to choose a destination, then click <b>Move</b>. The tool will move the files and patch the manifests for you.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <div class="action-group" id="help-pc" style="margin-bottom: 10px;">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-pc')">
-                        <div class="group-title"><span class="group-dot accent"></span>Move Between PCs</div>
-                        <span class="group-chevron collapsed" id="chevron-help-pc">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-pc">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Run this tool on your old PC. It will automatically back up all manifests.</li>
-                            <li style="margin-bottom: 4px;">When prompted, unplug your game drive and connect it to the new PC.</li>
-                            <li>Run the app on the new PC and click <b>OK</b> to instantly restore all game paths.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <div class="action-group" id="help-capture" style="margin-bottom: 10px;">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-capture')">
-                        <div class="group-title"><span class="group-dot accent"></span>Capture</div>
-                        <span class="group-chevron collapsed" id="chevron-help-capture">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-capture">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Click <b>Start Capture</b> to automatically scan for games missing a manifest.</li>
-                            <li style="margin-bottom: 4px;">For each game, the tool will prompt you to start a download in Epic and immediately cancel it.</li>
-                            <li>The tool will automatically intercept the newly generated `.item` file and save it.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <div class="action-group" id="help-link" style="margin-bottom: 10px;">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-link')">
-                        <div class="group-title"><span class="group-dot purple"></span>Link</div>
-                        <span class="group-chevron collapsed" id="chevron-help-link">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-link">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Close Epic Launcher entirely.</li>
-                            <li style="margin-bottom: 4px;">Click <b>Start Link</b> to find pending/intercepted manifests.</li>
-                            <li>Select the correct game folder for each manifest to permanently register it.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <div class="action-group" id="help-fix-games" style="margin-bottom: 10px;">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-fix-games')">
-                        <div class="group-title"><span class="group-dot warn"></span>Fix Games (manifests)</div>
-                        <span class="group-chevron collapsed" id="chevron-help-fix-games">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-fix-games">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Close Epic Launcher entirely.</li>
-                            <li style="margin-bottom: 4px;">Click <b>Start Fix</b> to load all active manifests.</li>
-                            <li>Select a broken game manifest, select its correct folder, and click <b>Fix Link</b>.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <div class="action-group" id="help-fix-dlcs" style="margin-bottom: 10px;">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-fix-dlcs')">
-                        <div class="group-title"><span class="group-dot warn"></span>Fix DLCs (Manifests)</div>
-                        <span class="group-chevron collapsed" id="chevron-help-fix-dlcs">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-fix-dlcs">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Close Epic Launcher entirely.</li>
-                            <li style="margin-bottom: 4px;">Click <b>Start Fix DLCs</b> to view all manifests.</li>
-                            <li>Select the DLC's broken manifest, select its <b>Base Game</b> folder, and click <b>Fix Link</b>.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <div class="action-group" id="help-library" style="margin-bottom: 10px;">
+                
+                <div class="action-group" id="help-library">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('help-library')">
                         <div class="group-title"><span class="group-dot success"></span>Library Hub</div>
                         <span class="group-chevron collapsed" id="chevron-help-library">▾</span>
                     </div>
                     <div class="action-group-body collapsed" id="body-help-library">
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 8px;">
-                            <li style="margin-bottom: 4px;">Click <b>Refresh Library</b> to scan your installed games.</li>
-                            <li style="margin-bottom: 4px;">If a game shows a "Path Broken" status, use the Fix tools above.</li>
-                            <li>Click the <b>Play</b> button to launch a game directly from the app.</li>
+                        <ol>
+                            <li>Click <b>Refresh Library</b> to scan your installed games.</li>
+                            <li>If a game says <b>Unregistered</b>, click <b>Import</b> to sync it with Epic.</li>
+                            <li>Restart the Epic Launcher when prompted to see the changes.</li>
                         </ol>
                     </div>
                 </div>
 
-                <div class="action-group" id="help-manifest-tools" style="margin-bottom: 10px;">
+                
+                <div class="action-group" id="help-manifest-tools">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('help-manifest-tools')">
-                        <div class="group-title"><span class="group-dot warn"></span>Manifest Tools</div>
+                        <div class="group-title"><span class="group-dot warn"></span>Manifest Maintenance</div>
                         <span class="group-chevron collapsed" id="chevron-help-manifest-tools">▾</span>
                     </div>
                     <div class="action-group-body collapsed" id="body-help-manifest-tools">
-                        <p style="color: var(--muted); font-size: 11px; margin: 8px 0 4px; font-weight: 600;">🧹 Manifest Cleanup</p>
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 4px;">
-                            <li style="margin-bottom: 4px;">Click <b>Manifest Cleanup</b> to scan for ghost/orphaned <code>.item</code> files.</li>
-                            <li style="margin-bottom: 4px;">Select the entries you want to remove and click <b>Delete Selected</b>.</li>
-                            <li>Restart the Epic Games Launcher to clear ghost games from the library.</li>
+                        <p>🧹 Manifest Cleanup</p>
+                        <ol>
+                            <li>Removes "ghost" game entries and duplicate download files.</li>
                         </ol>
-                        <p style="color: var(--muted); font-size: 11px; margin: 12px 0 4px; font-weight: 600;">✔ Manifest Validator</p>
-                        <ol style="color: var(--muted); margin: 0; padding-left: 20px; padding-top: 4px;">
-                            <li style="margin-bottom: 4px;">Click <b>Manifest Validator</b> to check all manifests for structural issues.</li>
-                            <li style="margin-bottom: 4px;">Warnings indicate broken paths; errors indicate corrupt/unreadable files.</li>
-                            <li>Use <b>Fix Manifest Link</b> to repair any broken path references.</li>
+                        <p>✔ Manifest Validator</p>
+                        <ol>
+                            <li>Checks all manifests for structural errors and broken path references.</li>
                         </ol>
                     </div>
                 </div>
 
+                
+                <div class="action-group" id="help-fix-games">
+                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-fix-games')">
+                        <div class="group-title"><span class="group-dot"></span>Advanced Tools</div>
+                        <span class="group-chevron collapsed" id="chevron-help-fix-games">▾</span>
+                    </div>
+                    <div class="action-group-body collapsed" id="body-help-fix-games">
+                        <p>Capture & Link</p>
+                        <ol>
+                            <li>Use these only if <b>Import</b> fails or if no <code>.mancpn</code> metadata exists.</li>
+                        </ol>
+                        <p>Fix Manifest Link</p>
+                        <ol>
+                            <li>Allows manual folder-to-manifest matching using the interactive picker.</li>
+                        </ol>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- ══ Bottom-left Log Blob ══ -->
+    
     <div id="logBlob" style="position: fixed; bottom: 16px; left: 16px; z-index: 999; display: flex; flex-direction: column; align-items: flex-start; gap: 6px;">
         <button id="easterEggCorner" onclick="appCtrl.easterEgg()" class="hidden"
             style="background: none; border: none; opacity: 0.15; font-size: 13px; cursor: help; color: var(--muted); padding: 2px 6px;">¿?</button>
-        <!-- Icon row: Help + Settings (always visible) -->
+        
         <div style="display: flex; gap: 6px;">
-            <button class="icon-btn" onclick="appCtrl.openHelp()" title="Help"
-                style="padding: 7px; border-radius: 10px; background: rgba(255,255,255,0.07); backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.3);">
+            <button class="icon-btn floating-action-btn" onclick="appCtrl.openHelp()" title="Help">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
             </button>
-            <button class="icon-btn" id="settingsBtn" onclick="appCtrl.openSettings()" title="Settings"
-                style="padding: 7px; border-radius: 10px; background: rgba(255,255,255,0.07); backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.3);">
+            <button class="icon-btn floating-action-btn" id="settingsBtn" onclick="appCtrl.openSettings()" title="Settings">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
             <button id="hideLogBtn" onclick="appCtrl.toggleTerminalOff()"

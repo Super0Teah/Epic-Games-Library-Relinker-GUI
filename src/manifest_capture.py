@@ -612,3 +612,137 @@ class ManifestCapture:
             pass
 
         return duplicates
+
+    # ── One-click Import (from .mancpn) ──────────────────────────────────────
+
+    @staticmethod
+    def read_mancpn(game_folder_path: str) -> dict | None:
+        """
+        Reads the first .mancpn file found inside <game_folder>/.egstore/.
+        Returns a dict with AppName, CatalogNamespace, CatalogItemId,
+        FormatVersion, and mancpn_path — or None if no .mancpn exists.
+        """
+        egstore = os.path.join(game_folder_path, GameDataManager.GAME_MANIFEST_FOLDER_NAME)
+        if not os.path.isdir(egstore):
+            return None
+        try:
+            for e in os.scandir(egstore):
+                if e.is_file() and e.name.endswith(GameDataManager.MANCPN_FILE_TYPE):
+                    with open(e.path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    return {
+                        "AppName":          data.get("AppName", ""),
+                        "CatalogNamespace": data.get("CatalogNamespace", ""),
+                        "CatalogItemId":    data.get("CatalogItemId", ""),
+                        "FormatVersion":    data.get("FormatVersion", 0),
+                        "mancpn_path":      e.path,
+                    }
+        except OSError:
+            pass
+        return None
+
+    @staticmethod
+    def create_item_manifest(
+        mancpn_data: dict,
+        game_folder_path: str,
+        manifests_root: str,
+    ) -> tuple[bool, str]:
+        """
+        Synthesises a full .item file from .mancpn data and writes it into
+        manifests_root.  The file is named <AppName>.item.
+
+        Returns (success: bool, message: str).
+        """
+        try:
+            app_name  = mancpn_data["AppName"]
+            if not app_name:
+                return False, "AppName is empty in .mancpn — cannot create manifest."
+
+            egstore   = os.path.join(game_folder_path, GameDataManager.GAME_MANIFEST_FOLDER_NAME)
+            staging   = os.path.join(egstore, GameDataManager.STAGING_FOLDER_NAME)
+            item_name = app_name + GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE
+            item_path = os.path.join(manifests_root, item_name)
+
+            # Start from the .mancpn content (contains FormatVersion, CatalogNamespace…)
+            with open(mancpn_data["mancpn_path"], "r", encoding="utf-8") as f:
+                content = json.load(f)
+
+            # Inject / overwrite the location-dependent fields
+            content["InstallationGuid"]     = app_name
+            content["InstallLocation"]      = game_folder_path.replace("\\", "/")
+            content["ManifestLocation"]     = egstore.replace("\\", "/")
+            content["StagingLocation"]      = staging.replace("\\", "/")
+            content["bIsIncompleteInstall"] = False
+            content["AppVersionString"]     = "0"
+
+            with open(item_path, "w", encoding="utf-8") as f:
+                json.dump(content, f, indent=4)
+
+            return True, item_path
+
+        except Exception as exc:
+            return False, f"Error creating .item manifest: {exc}"
+
+    @staticmethod
+    def backup_launcher_installed_dat() -> tuple[bool, str]:
+        """
+        Creates a one-time backup of LauncherInstalled.dat as
+        LauncherInstalled.relinker-backup.dat (only if no backup already exists).
+
+        Returns (success: bool, message: str).
+        """
+        src = GameDataManager.LAUNCHER_INSTALLED_DAT
+        backup = src.replace(".dat", ".relinker-backup.dat")
+        try:
+            if not os.path.exists(backup) and os.path.exists(src):
+                shutil.copy2(src, backup)
+                return True, f"Backup created: {backup}"
+            return True, "Backup already exists — skipped."
+        except Exception as exc:
+            return False, f"Could not back up LauncherInstalled.dat: {exc}"
+
+    @staticmethod
+    def add_to_launcher_installed(
+        mancpn_data: dict,
+        game_folder_path: str,
+    ) -> tuple[bool, str]:
+        """
+        Adds (or updates) an entry for the game in LauncherInstalled.dat.
+        Deduplicates by AppName so re-running never creates duplicate entries.
+
+        Returns (success: bool, message: str).
+        """
+        dat_path = GameDataManager.LAUNCHER_INSTALLED_DAT
+        try:
+            if not os.path.exists(dat_path):
+                return False, f"LauncherInstalled.dat not found at {dat_path}"
+
+            app_name = mancpn_data.get("AppName", "")
+            if not app_name:
+                return False, "AppName is empty — cannot update LauncherInstalled.dat."
+
+            with open(dat_path, "r", encoding="utf-8") as f:
+                dat = json.load(f)
+
+            # Remove any existing entry with the same AppName (clean dedup)
+            dat["InstallationList"] = [
+                e for e in dat.get("InstallationList", [])
+                if e.get("AppName") != app_name
+            ]
+
+            dat["InstallationList"].append({
+                "InstallLocation": game_folder_path.replace("\\", "/"),
+                "NamespaceId":     mancpn_data.get("CatalogNamespace", ""),
+                "ItemId":          mancpn_data.get("CatalogItemId", ""),
+                "ArtifactId":      app_name,
+                "AppVersion":      "",
+                "AppName":         app_name,
+            })
+
+            with open(dat_path, "w", encoding="utf-8") as f:
+                json.dump(dat, f, indent=4)
+
+            return True, f"Added '{app_name}' to LauncherInstalled.dat"
+
+        except Exception as exc:
+            return False, f"Error updating LauncherInstalled.dat: {exc}"
