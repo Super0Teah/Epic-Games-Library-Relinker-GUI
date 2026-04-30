@@ -18,8 +18,9 @@ def build_main():
         "--onefile",
         "--windowed",
         "--name", "EpicGamesRelinker_v2.0.1",
-        # Include the web folder (HTML/CSS/JS)
+        # Include the web folder (HTML/CSS/JS) and README
         f"--add-data=src/web{os.pathsep}web",
+        f"--add-data=README.md{os.pathsep}.",
         # Hidden imports for PyWebView on Windows (WinForms + EdgeChromium)
         "--hidden-import=webview.platforms.winforms",
         "--hidden-import=webview.platforms.edgechromium",
