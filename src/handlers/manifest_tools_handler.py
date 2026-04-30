@@ -11,7 +11,12 @@ class ManifestToolsHandler:
             cap           = ManifestCapture(manifest_path, [])
             orphans       = cap.get_orphaned_manifests()
             pending_dupes = cap.get_duplicate_pending_manifests()
-            return json.dumps({"orphans": orphans, "pending_dupes": pending_dupes})
+            system_dupes  = cap.get_duplicate_system_manifests()
+            return json.dumps({
+                "orphans": orphans,
+                "pending_dupes": pending_dupes,
+                "system_dupes": system_dupes
+            })
         except Exception as exc:
             return json.dumps({"error": str(exc)})
     def get_manifest_validate_data(self, manifest_path: str) -> str:

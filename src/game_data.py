@@ -150,45 +150,10 @@ class GameDataManager:
             file.truncate() # Remove any remaining data after the written data.
 
         # Force sync UUID of the game manifest files (DLC-Aware)
-        sync_count = 0
         try:
-            import shutil
-            new_basename = os.path.splitext(os.path.basename(launcher_manifest.path))[0]
-            pending_dir = os.path.join(manifest_location, "Pending")
-            
-            # Phase 1: Pull out generated captures safely
-            if os.path.exists(pending_dir):
-                for ext in [".manifest", ".manc", ".chunkdb", ".bms"]:
-                    try:
-                        for e in os.scandir(pending_dir):
-                            if e.is_file() and e.name.endswith(ext):
-                                new_path = os.path.join(manifest_location, e.name)
-                                if e.path != new_path:
-                                    shutil.move(e.path, new_path)
-                                    sync_count += 1
-                    except Exception: pass
-            
-            # Phase 2: Rename root files only if safe (no DLCs)
-            try:
-                for ext in [".manifest", ".manc", ".chunkdb", ".bms"]:
-                    existing_files = [e for e in os.scandir(manifest_location) if e.is_file() and e.name.endswith(ext)]
-                    if len(existing_files) == 1:
-                        e = existing_files[0]
-                        new_path = os.path.join(manifest_location, new_basename + ext)
-                        if e.path != new_path:
-                            shutil.move(e.path, new_path)
-                            sync_count += 1
-            except Exception: pass
-            
-            # Phase 3: Copy .item safely
-            try:
-                dest_item = os.path.join(manifest_location, os.path.basename(launcher_manifest.path))
-                shutil.copy2(launcher_manifest.path, dest_item)
-                sync_count += 1
-            except Exception: pass
-            
-            if sync_count > 0:
-                print(f"INFO: Successfully synced {sync_count} tracking files safely for {updated_game_folder}")
+            from manifest_capture import ManifestCapture
+            sync_msg = ManifestCapture._sync_egstore_files(launcher_manifest.path, updated_game_folder)
+            print(f"INFO: {sync_msg}")
         except Exception as e:
             print(f"WARNING: Exception while syncing game manifests for {updated_game_folder}: {e}")
 

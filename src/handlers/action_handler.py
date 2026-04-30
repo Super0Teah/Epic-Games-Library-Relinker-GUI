@@ -73,6 +73,7 @@ class ActionHandler:
         g_path: str,
         debug_mode: bool,
     ):
+        self._debug_mode = debug_mode
         try:
             if debug_mode:
                 self._log("INFO: [DEBUG MODE ON] — full tracebacks will be logged on error.", "INFO")
@@ -97,9 +98,9 @@ class ActionHandler:
                 "move_pc": self._action_move_pc,
                 "capture": self._action_capture,
                 "link":    self._action_link,
-                "fix":     self._action_fix,
-                "fix_dlc": self._action_fix,
-                "import":  self._action_import,
+                "fix":      self._action_fix,
+                "fix_dlc":  self._action_fix,
+                "auto_fix": self._action_auto_fix,
             }
             handler = dispatch.get(action)
             if handler:
@@ -324,42 +325,117 @@ class ActionHandler:
                 })
             else:
                 self._log(f"ERROR: {msg}", "ERROR")
-    def _action_import(self, action, m_path, g_path, gdm):
+    def _action_auto_fix(self, action, m_path, g_path, gdm):
         game_folder = g_path.strip()
         if not game_folder or not os.path.isdir(game_folder):
-            self._log("ERROR: Import requires a valid game folder path.", "ERROR")
+            self._log("ERROR: Fix requires a valid game folder path.", "ERROR")
             return
-        self._log(f"STEP: Importing game from: {game_folder}")
-        mancpn = ManifestCapture.read_mancpn(game_folder)
-        if not mancpn:
+            
+        self._log(f"STEP: Discovering manifests in: {game_folder}")
+        manifests = ManifestCapture.discover_manifests(game_folder)
+        
+        if not manifests:
             self._log(
-                "ERROR: No .mancpn file found inside the game's .egstore folder. "
-                "Cannot auto-import — use Fix Manifest Link instead.",
+                "ERROR: No .item or .mancpn files found inside the game's .egstore folder. "
+                "Cannot auto-fix — use Fix Manifest Link instead.",
                 "ERROR",
             )
             return
-        self._log(f"INFO: Found .mancpn → AppName: {mancpn['AppName']}")
+            
+        self._log(f"INFO: Found {len(manifests)} manifest(s) to fix.")
+        
+        # Admin Check
+        import ctypes
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        if not is_admin:
+            self._log("WARNING: App is NOT running as Administrator. Taskkill and Registry updates may fail.", "WARNING")
+
+        try:
+            # Force kill Epic processes to unlock LauncherInstalled.dat
+            import subprocess
+            import time
+            target_procs = [
+                "EpicGamesLauncher.exe", 
+                "EpicWebHelper.exe", 
+                "EpicOnlineServices.exe", 
+                "EpicOnlineServicesUserHelper.exe",
+                "SocialOverlayUI.exe"
+            ]
+            self._log("INFO: Terminating Epic Games Launcher processes to unlock registry...")
+            found_procs = False
+            for p in target_procs:
+                res = subprocess.run(['taskkill', '/F', '/IM', p, '/T'], capture_output=True, creationflags=0x08000000)
+                if res.returncode == 0:
+                    found_procs = True
+            
+            if found_procs:
+                self._log("SUCCESS: Epic processes found and terminated.", "SUCCESS")
+                # Wait times removed as requested
+            else:
+                self._log("INFO: No active Epic Games processes found.")
+
+        except Exception as e:
+            self._log(f"WARNING: Exception during taskkill: {e}", "WARNING")
+
+        dat_path = GameDataManager.LAUNCHER_INSTALLED_DAT
+        # Verify access to LauncherInstalled.dat
+        if os.path.exists(dat_path):
+            try:
+                # Try to open for append to check lock
+                with open(dat_path, "a"): pass
+            except OSError:
+                self._log("WARNING: LauncherInstalled.dat is still locked. Attempting to proceed anyway...", "WARNING")
+                time.sleep(2)
+
         ok_bak, msg_bak = ManifestCapture.backup_launcher_installed_dat()
         if ok_bak:
             self._log(f"INFO: {msg_bak}")
         else:
             self._log(f"WARNING: {msg_bak}", "WARNING")
-        self._log("INFO: Creating .item manifest...")
-        ok_item, msg_item = ManifestCapture.create_item_manifest(mancpn, game_folder, m_path)
-        if ok_item:
-            self._log(f"SUCCESS: Manifest created: {msg_item}", "SUCCESS")
-        else:
-            self._log(f"ERROR: {msg_item}", "ERROR")
-            return
-        self._log("INFO: Updating LauncherInstalled.dat...")
-        ok_dat, msg_dat = ManifestCapture.add_to_launcher_installed(mancpn, game_folder)
-        if ok_dat:
+
+        success_count = 0
+        success_manifests = []
+        for m_data in manifests:
+            app_name = m_data.get("AppName", "Unknown")
+            m_type   = m_data.get("manifest_type", "unknown")
+            display  = m_data.get("DisplayName") or app_name
+            
+            self._log(f"INFO: Processing {display} ({app_name}) via {m_type}...")
+            
+            ok_item, msg_item = ManifestCapture.create_item_manifest(m_data, game_folder, m_path)
+            if not ok_item:
+                self._log(f"ERROR: Failed to create manifest for {app_name}: {msg_item}", "ERROR")
+                continue
+                
+            success_manifests.append(m_data)
+            success_count += 1
+            self._log(f"SUCCESS: Created manifest for {app_name}", "SUCCESS")
+
+        if success_count > 0:
+            self._log("INFO: Finalising registry updates...")
+            ok_dat, msg_dat = ManifestCapture.add_to_launcher_installed(success_manifests, game_folder)
+            
+            if not ok_dat:
+                self._log(f"ERROR: {msg_dat}", "ERROR")
+                return # Stop here if registry failed
+
             self._log(f"SUCCESS: {msg_dat}", "SUCCESS")
+            
+            # Final Forensic Pass (Only if Debug Mode is ON)
+            if getattr(self, "_debug_mode", False):
+                self._log("INFO: Performing debug forensic verification...")
+                names = [m.get("AppName","") for m in success_manifests if m.get("AppName")]
+                ok_f, msg_f = ManifestCapture.forensic_verify_registry(names)
+                if ok_f:
+                    self._log(f"SUCCESS: {msg_f}", "SUCCESS")
+                else:
+                    self._log(f"WARNING: {msg_f}", "WARNING")
+                
+            self._log(f"SUCCESS: Import complete! {success_count} entries are now registered and verified.", "SUCCESS")
+            
+            self._modal_queue.append({
+                "type": "restart_prompt",
+                "msg":  f"Import complete!\n\n{success_count} manifests were successfully linked and verified in the registry.\n\nDo you want to restart the Epic Games Launcher now?",
+            })
         else:
-            self._log(f"ERROR: {msg_dat}", "ERROR")
-            return
-        self._log("SUCCESS: Import complete! Restart the Epic Games Launcher to see the game.", "SUCCESS")
-        self._modal_queue.append({
-            "type": "restart_prompt",
-            "msg":  "Import complete!\n\nDo you want to restart the Epic Games Launcher now to detect the game?",
-        })
+            self._log("ERROR: No manifests were successfully imported.", "ERROR")

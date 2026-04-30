@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Epic Games Relinker GUI</title>
-    <link rel="stylesheet" href="style.css?v=2.2.0">
+    <link rel="stylesheet" href="style.css?v=2.2.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         
@@ -137,21 +137,26 @@
                 
                 <div class="settings-section">
                     <div class="settings-section-label">
-                        <span class="group-dot warn"></span>Settings Management
+                        <span class="group-dot warn"></span>Maintenance
                     </div>
                     <div class="settings-danger-row">
                         <button class="btn-settings-action btn-settings-restore" onclick="appCtrl.restoreSettings()" style="display:flex; align-items:center; gap:6px; justify-content:center;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                            Restore Saved Settings
+                            Restore Settings
                         </button>
                         <button class="btn-settings-action btn-settings-reset" onclick="appCtrl.resetSettings()" style="display:flex; align-items:center; gap:6px; justify-content:center;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            Reset to Defaults
+                            Reset Defaults
+                        </button>
+                    </div>
+                    <div class="settings-danger-row mt-2">
+                        <button class="btn btn-full bg-border flex-center gap-2" onclick="appCtrl.hardRefresh()" style="font-size: 11px; padding: 8px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-8.4l5.67-5.67"/></svg>
+                            Hard Refresh (Clear Cache)
                         </button>
                     </div>
                     <p class="settings-hint">
-                        <b>Restore</b> reloads settings from the saved config file on disk.<br>
-                        <b>Reset</b> clears all paths and returns to default values. This cannot be undone.
+                        <b>Hard Refresh</b> reloads the interface and bypasses the file cache. Your settings (paths/theme) will be <b>kept</b>.
                     </p>
                 </div>
 
@@ -183,7 +188,7 @@
                                 <div class="credit-role">Contributor to Original Project</div>
                             </div>
                         </div>
-                        <div class="credits-footer">Epic Games Relinker GUI · v2.0.0</div>
+                        <div class="credits-footer">Epic Games Relinker GUI · v2.0.1</div>
                     </div>
                 </div>
 
@@ -199,7 +204,7 @@
             
             <div class="sidebar-header">
                 <h1 class="app-title">Epic Games Relinker GUI</h1>
-                <span class="app-version">v2.0.0</span>
+                <span class="app-version">v2.0.1</span>
             </div>
 
                 <div class="sidebar-nav">
@@ -580,19 +585,31 @@
             
             <div class="cleanup-tabs">
                 <button class="cleanup-tab active" id="cleanupTabOrphans" onclick="appCtrl.cleanupSwitchTab('orphans')">
-                    Orphaned Manifests <span class="cleanup-tab-count" id="cleanupCountOrphans"></span>
+                    Orphaned <span class="cleanup-tab-count" id="cleanupCountOrphans"></span>
+                </button>
+                <button class="cleanup-tab" id="cleanupTabSystem" onclick="appCtrl.cleanupSwitchTab('system')">
+                    Duplicates <span class="cleanup-tab-count" id="cleanupCountSystem"></span>
                 </button>
                 <button class="cleanup-tab" id="cleanupTabPending" onclick="appCtrl.cleanupSwitchTab('pending')">
-                    Duplicate Pending <span class="cleanup-tab-count" id="cleanupCountPending"></span>
+                    Pending <span class="cleanup-tab-count" id="cleanupCountPending"></span>
                 </button>
             </div>
 
             
             <div id="cleanupPaneOrphans" class="cleanup-pane">
                 <p class="cleanup-pane-desc muted">
-                    These <b>.item</b> files point to game folders that no longer exist on disk — ghost entries that cause the launcher to show games it cannot find.
+                    These <b>.item</b> files point to game folders that no longer exist on disk — ghost entries.
                 </p>
                 <div id="cleanupOrphanList" class="manifest-result-list">
+                    <div class="muted text-center" style="padding: 32px;">Scanning...</div>
+                </div>
+            </div>
+
+            <div id="cleanupPaneSystem" class="cleanup-pane hidden">
+                <p class="cleanup-pane-desc muted">
+                    Multiple <b>.item</b> files found with the same AppName. Epic only uses one; others are redundant leftovers.
+                </p>
+                <div id="cleanupSystemList" class="manifest-result-list">
                     <div class="muted text-center" style="padding: 32px;">Scanning...</div>
                 </div>
             </div>
@@ -647,35 +664,37 @@
             <div class="settings-body">
                 
                 
-                <div class="action-group" id="help-relink">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-relink')">
-                        <div class="group-title"><span class="group-dot blue"></span>Relink & Move</div>
-                        <span class="group-chevron collapsed" id="chevron-help-relink">▾</span>
+                <div class="action-group" id="help-library">
+                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-library')">
+                        <div class="group-title"><span class="group-dot success"></span>Library Fixer</div>
+                        <span class="group-chevron collapsed" id="chevron-help-library">▾</span>
                     </div>
-                    <div class="action-group-body collapsed" id="body-help-relink">
-                        <p>Relink All</p>
+                    <div class="action-group-body collapsed" id="body-help-library">
+                        <p>Fixing Games</p>
                         <ol>
-                            <li>Point <b>Games Folder</b> to your new library location.</li>
-                            <li>Click <b>Relink All</b> to batch-patch all manifests at once.</li>
-                        </ol>
-                        <p>Move Games</p>
-                        <ol>
-                            <li>Select games, choose a destination, and click <b>Move</b>. The tool handles the file transfer and manifest patching.</li>
+                            <li>Click <b>Refresh Library</b> to scan your installed games.</li>
+                            <li>If a game says <b>Unregistered</b>, click <b>Fix</b> to sync it with Epic.</li>
+                            <li>If a game says <b>Duplicate (No Local Source)</b>, it means the launcher has a manifest but your game folder is missing its tracking files.</li>
+                            <li>Restart the Epic Launcher when prompted to see the changes.</li>
                         </ol>
                     </div>
                 </div>
 
                 
-                <div class="action-group" id="help-library">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-library')">
-                        <div class="group-title"><span class="group-dot success"></span>Library Hub</div>
-                        <span class="group-chevron collapsed" id="chevron-help-library">▾</span>
+                <div class="action-group" id="help-relink">
+                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-relink')">
+                        <div class="group-title"><span class="group-dot blue"></span>Batch Tools</div>
+                        <span class="group-chevron collapsed" id="chevron-help-relink">▾</span>
                     </div>
-                    <div class="action-group-body collapsed" id="body-help-library">
+                    <div class="action-group-body collapsed" id="body-help-relink">
+                        <p>Relink Existing</p>
                         <ol>
-                            <li>Click <b>Refresh Library</b> to scan your installed games.</li>
-                            <li>If a game says <b>Unregistered</b>, click <b>Import</b> to sync it with Epic.</li>
-                            <li>Restart the Epic Launcher when prompted to see the changes.</li>
+                            <li>Point <b>Games Folder</b> to your library location.</li>
+                            <li>Click <b>Relink All</b> to batch-patch paths for all currently linked manifests.</li>
+                        </ol>
+                        <p>Moving Games</p>
+                        <ol>
+                            <li>Select games in the Library tab, click <b>Move</b>, and choose a destination. The tool handles everything.</li>
                         </ol>
                     </div>
                 </div>
@@ -683,35 +702,17 @@
                 
                 <div class="action-group" id="help-manifest-tools">
                     <div class="action-group-header" onclick="appCtrl.toggleGroup('help-manifest-tools')">
-                        <div class="group-title"><span class="group-dot warn"></span>Manifest Maintenance</div>
+                        <div class="group-title"><span class="group-dot warn"></span>Maintenance</div>
                         <span class="group-chevron collapsed" id="chevron-help-manifest-tools">▾</span>
                     </div>
                     <div class="action-group-body collapsed" id="body-help-manifest-tools">
                         <p>🧹 Manifest Cleanup</p>
                         <ol>
-                            <li>Removes "ghost" game entries and duplicate download files.</li>
+                            <li>Removes "ghost" entries, duplicates, and orphaned manifests from your system.</li>
                         </ol>
                         <p>✔ Manifest Validator</p>
                         <ol>
-                            <li>Checks all manifests for structural errors and broken path references.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                
-                <div class="action-group" id="help-fix-games">
-                    <div class="action-group-header" onclick="appCtrl.toggleGroup('help-fix-games')">
-                        <div class="group-title"><span class="group-dot"></span>Advanced Tools</div>
-                        <span class="group-chevron collapsed" id="chevron-help-fix-games">▾</span>
-                    </div>
-                    <div class="action-group-body collapsed" id="body-help-fix-games">
-                        <p>Capture & Link</p>
-                        <ol>
-                            <li>Use these only if <b>Import</b> fails or if no <code>.mancpn</code> metadata exists.</li>
-                        </ol>
-                        <p>Fix Manifest Link</p>
-                        <ol>
-                            <li>Allows manual folder-to-manifest matching using the interactive picker.</li>
+                            <li>Checks for structural errors and broken path references in all manifest files.</li>
                         </ol>
                     </div>
                 </div>
@@ -744,6 +745,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2.2.1"></script>
 </body>
 </html>

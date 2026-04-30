@@ -713,9 +713,9 @@ const appCtrl = {
         
         const canFix = (game.status === 'Missing Manifest' || game.status === 'Unregistered') && game.can_import;
         const fixBtn = canFix
-            ? `<button class="btn-import" onclick="appCtrl.fixGame('${safeGamePath}', '${safeGameName}', this)">&#x1F527; Fix</button>`
+            ? `<button class="lib-action-btn fix" onclick="appCtrl.fixGame('${safeGamePath}', '${safeGameName}', this)">&#x1F527; Fix</button>`
             : (game.status === 'Missing Manifest'
-                ? `<span class="import-unavailable" title="No .mancpn found in .egstore — use Fix Manifest Link instead.">No .mancpn</span>`
+                ? `<span class="fix-unavailable" title="No .mancpn found in .egstore — use Fix Manifest Link instead.">No .mancpn</span>`
                 : '');
 
         card.innerHTML = `
@@ -758,7 +758,7 @@ const appCtrl = {
 
         const m = document.getElementById('manifestPath').value;
         
-        window.pywebview.api.start_action('import', m, gamePath, false, false);
+        window.pywebview.api.start_action('auto_fix', m, gamePath, false, false);
     },
 
     restartLauncher() {
@@ -803,18 +803,18 @@ const appCtrl = {
 
             this._cleanupOrphans = res.orphans       || [];
             this._cleanupPending = res.pending_dupes || [];
+            this._cleanupSystem  = res.system_dupes  || [];
 
-            
             this._renderOrphanList();
-
-            
             this._renderPendingList();
+            this._renderSystemList();
 
-            
             document.getElementById('cleanupCountOrphans').textContent =
                 this._cleanupOrphans.length ? `(${this._cleanupOrphans.length})` : '';
             document.getElementById('cleanupCountPending').textContent =
                 this._cleanupPending.length ? `(${this._cleanupPending.length})` : '';
+            document.getElementById('cleanupCountSystem').textContent =
+                this._cleanupSystem.length ? `(${this._cleanupSystem.length})` : '';
 
             this._updateCleanupSummary();
 
@@ -849,6 +849,7 @@ const appCtrl = {
 
     _renderPendingList() {
         const list = document.getElementById('cleanupPendingList');
+        if (!list) return;
         if (this._cleanupPending.length === 0) {
             list.innerHTML = '<div class="manifest-all-ok"><span>✔</span> No duplicate pending manifests found!</div>';
             return;
@@ -878,11 +879,37 @@ const appCtrl = {
         });
     },
 
+    _renderSystemList() {
+        const list = document.getElementById('cleanupSystemList');
+        if (!list) return;
+        if (this._cleanupSystem.length === 0) {
+            list.innerHTML = '<div class="manifest-all-ok"><span>✔</span> No duplicate AppNames found in root folder!</div>';
+            return;
+        }
+        list.innerHTML = '';
+        this._cleanupSystem.forEach((s, idx) => {
+            const row = document.createElement('div');
+            row.className = 'manifest-result-row orphan-row';
+            row.innerHTML = `
+                <label class="manifest-check-label">
+                    <input type="checkbox" class="orphan-check" data-list="system" data-idx="${idx}">
+                    <div class="manifest-row-info">
+                        <div class="manifest-row-name">${s.display_name || s.file_name} <span class="badge-warn" style="font-size:10px;">DUPLICATE</span></div>
+                        <div class="manifest-row-file">File: ${s.file_name}</div>
+                        <div class="manifest-row-file" style="color: var(--muted);">Conflicts with: ${s.root_file_name}</div>
+                        <div class="manifest-row-path" style="color: var(--muted); font-style: normal;">AppName: ${s.app_name}</div>
+                    </div>
+                </label>`;
+            list.appendChild(row);
+        });
+    },
+
     _updateCleanupSummary() {
         const summary = document.getElementById('cleanupSummary');
         const parts = [];
         if (this._cleanupOrphans.length) parts.push(`${this._cleanupOrphans.length} orphaned`);
-        if (this._cleanupPending.length) parts.push(`${this._cleanupPending.length} duplicate pending`);
+        if (this._cleanupSystem.length)  parts.push(`${this._cleanupSystem.length} system duplicates`);
+        if (this._cleanupPending.length) parts.push(`${this._cleanupPending.length} pending duplicates`);
         summary.textContent = parts.length ? parts.join(', ') + ' manifest(s) found.' : 'No issues found — your manifest folder is clean!';
     },
 
@@ -890,8 +917,12 @@ const appCtrl = {
         this._cleanupActiveTab = tab;
         document.getElementById('cleanupPaneOrphans').classList.toggle('hidden', tab !== 'orphans');
         document.getElementById('cleanupPanePending').classList.toggle('hidden', tab !== 'pending');
+        document.getElementById('cleanupPaneSystem').classList.toggle('hidden', tab !== 'system');
+        
         document.getElementById('cleanupTabOrphans').classList.toggle('active', tab === 'orphans');
         document.getElementById('cleanupTabPending').classList.toggle('active', tab === 'pending');
+        document.getElementById('cleanupTabSystem').classList.toggle('active', tab === 'system');
+        
         if (!init) document.getElementById('cleanupSelectAllBtn').textContent = 'Select All';
     },
 
@@ -901,10 +932,11 @@ const appCtrl = {
     },
 
     cleanupSelectAll() {
+        let selector = '.orphan-check:not(:disabled)';
+        if (this._cleanupActiveTab === 'orphans') selector = '#cleanupOrphanList ' + selector;
+        else if (this._cleanupActiveTab === 'pending') selector = '#cleanupPendingList ' + selector;
+        else if (this._cleanupActiveTab === 'system')  selector = '#cleanupSystemList ' + selector;
         
-        const selector = this._cleanupActiveTab === 'orphans'
-            ? '#cleanupOrphanList .orphan-check:not(:disabled)'
-            : '#cleanupPendingList .orphan-check:not(:disabled)';
         const checks = document.querySelectorAll(selector);
         const allChecked = Array.from(checks).every(c => c.checked);
         checks.forEach(c => c.checked = !allChecked);
@@ -927,7 +959,11 @@ const appCtrl = {
         for (const cb of checked) {
             const list = cb.dataset.list;  
             const idx  = parseInt(cb.dataset.idx);
-            const item = list === 'orphans' ? this._cleanupOrphans[idx] : this._cleanupPending[idx];
+            let item = null;
+            if (list === 'orphans') item = this._cleanupOrphans[idx];
+            else if (list === 'pending') item = this._cleanupPending[idx];
+            else if (list === 'system') item = this._cleanupSystem[idx];
+            
             if (!item) continue;
             try {
                 const resJson = await window.pywebview.api.delete_manifest_file(item.file_path);
@@ -1030,6 +1066,12 @@ const appCtrl = {
         document.getElementById('modalOverlay').classList.add('hidden');
         document.getElementById('readmeModal').classList.add('hidden');
     },
+
+    hardRefresh() {
+        // Just reload the window. location.reload(true) forces a cache bypass in most renderers.
+        // We do NOT clear localStorage here so user settings (paths, themes) are preserved.
+        location.reload(true);
+    },
 };
 
 
@@ -1063,6 +1105,7 @@ window.addEventListener('pywebviewready', () => {
                     if (m.type === 'capture_prompt') appCtrl.openCaptureModal(m.msg);
                     if (m.type === 'move')           appCtrl.openMoveModal(JSON.stringify(m.games_json));
                     if (m.type === 'restart_prompt') {
+                        appCtrl.refreshLibrary(); 
                         if (confirm(m.msg)) {
                             window.pywebview.api.restart_launcher();
                         }

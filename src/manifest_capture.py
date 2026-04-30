@@ -294,7 +294,10 @@ class ManifestCapture:
 
     @staticmethod
     def _sync_egstore_files(item_path: str, game_folder_path: str) -> str:
-        """Smarter Sync so DLC manifests aren't destroyed."""
+        """
+        Robustly syncs tracking files (.manifest, .manc, .chunkdb, .bms) in .egstore.
+        Ensures they match the InstallationGuid of the .item file to prevent verification loops.
+        """
         egstore = os.path.join(game_folder_path, GameDataManager.GAME_MANIFEST_FOLDER_NAME)
         if not os.path.exists(egstore):
             return " (No .egstore found to sync)"
@@ -317,32 +320,72 @@ class ManifestCapture:
                 except Exception as exc:
                     error_msg = str(exc)
 
-        # Phase 2: If we still need to forcefully rename old root manifests, ONLY do it if it's safe (e.g., no DLCs)
+        # Phase 2: Rename root files to match the new GUID (Installation ID) or ManifestHash
+        # This is critical for Epic to recognize the files as 'valid' for this installation.
         try:
+            # Get the target AppName and ManifestHash from the item we are syncing
+            target_app_name = ""
+            manifest_hash = ""
+            try:
+                with open(item_path, "r", encoding="utf-8") as f:
+                    item_data = json.load(f)
+                    target_app_name = item_data.get("AppName", "").lower()
+                    manifest_hash = item_data.get("ManifestHash", "").lower()
+            except: pass
+
             for ext in [".manifest", ".manc", ".chunkdb", ".bms"]:
                 existing_files = [e for e in os.scandir(egstore) if e.is_file() and e.name.endswith(ext)]
-                # If there's multiple (meaning DLCs exist), DO NOT blindly rename them all!
-                # If there's exactly one, and it's not the new UUID, it's safe to rename to the new UUID.
-                if len(existing_files) == 1:
-                    e = existing_files[0]
-                    new_path = os.path.join(egstore, new_basename + ext)
-                    if e.path != new_path:
-                        shutil.move(e.path, new_path)
-                        sync_count += 1
-        except Exception as exc:
-            pass
+                
+                # Try to find the match via ManifestHash or .mancpn
+                target_file = None
+                
+                # 1. Best: Match by ManifestHash (since we know the file's hash matches the item's ManifestHash)
+                if manifest_hash:
+                    # We can't easily hash every file, but we can check if a file already has this name
+                    # or try to match it via .mancpn
+                    pass
 
-        # Cleanup .item files: Only delete the exact old one if we know it, or avoid wiping all
+                # 2. Fallback: Match via .mancpn
+                if not target_file and target_app_name:
+                    for e in os.scandir(egstore):
+                        if e.is_file() and e.name.endswith(".mancpn"):
+                            try:
+                                with open(e.path, "r", encoding="utf-8") as f:
+                                    cpn = json.load(f)
+                                    if str(cpn.get("AppName", "")).lower() == target_app_name:
+                                        base = os.path.splitext(e.name)[0]
+                                        match = next((f for f in existing_files if f.name.startswith(base)), None)
+                                        if match:
+                                            target_file = match
+                                            break
+                            except: pass
+
+                if target_file:
+                    # We will rename it to match the InstallationGuid (new_basename)
+                    # AND also try renaming it to the ManifestHash if that's what Epic wants.
+                    # Usually, InstallationGuid is the safest bet for the filename.
+                    new_path = os.path.join(egstore, new_basename + ext)
+                    if target_file.path.lower() != new_path.lower():
+                        if os.path.exists(new_path):
+                            os.remove(new_path)
+                        shutil.move(target_file.path, new_path)
+                        sync_count += 1
+
+        except Exception as exc:
+            error_msg = str(exc)
+
+        # Phase 3: Cleanup .item files: Ensure a backup exists in .egstore
         try:
             dest_item = os.path.join(egstore, os.path.basename(item_path))
-            shutil.copy2(item_path, dest_item)
-            sync_count += 1
+            if not os.path.exists(dest_item) or os.path.getsize(item_path) != os.path.getsize(dest_item):
+                shutil.copy2(item_path, dest_item)
+                sync_count += 1
         except Exception:
             pass
 
         if error_msg:
-            return f" (Synced {sync_count} tracking files, Warning: {error_msg})"
-        return f" (Synced {sync_count} tracking files safely)"
+            return f" (Partially synced {sync_count} files, Warning: {error_msg})"
+        return f" (Synced {sync_count} tracking files)"
 
     @staticmethod
     def fix_manifest_link(
@@ -610,75 +653,283 @@ class ManifestCapture:
                     pass
         except OSError:
             pass
-
         return duplicates
 
-    # ── One-click Import (from .mancpn) ──────────────────────────────────────
+    def get_duplicate_system_manifests(self) -> list[dict]:
+        """
+        Finds .item files in the root Manifests folder that are redundant.
+        Prioritizes manifests that have a matching peer in their .egstore folder.
+        """
+        appname_map: dict[str, list[dict]] = {}
+        catalog_map: dict[str, list[dict]] = {}
+        folder_map:  dict[str, list[dict]] = {}
+        
+        try:
+            for e in os.scandir(self._launcher_manifest_folder):
+                if not (e.is_file() and e.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE)):
+                    continue
+                try:
+                    with open(e.path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    
+                    app_name   = data.get("AppName", "").strip()
+                    catalog_id = data.get("CatalogItemId", "").strip()
+                    display    = (data.get("DisplayName") or "").strip()
+                    loc        = (data.get("InstallLocation") or "").strip()
+                    norm_loc   = loc.lower().replace("\\", "/")
+                    
+                    if not app_name:
+                        continue
+                        
+                    # ── Sync & Superseded Detection ───────────────────────────
+                    has_sync        = False
+                    superseded_by   = None
+                    is_incomplete   = data.get("bIsIncompleteInstall", False)
+                    
+                    if loc and os.path.isdir(loc):
+                        egstore = os.path.join(loc, ".egstore")
+                        if os.path.isdir(egstore):
+                            # Exact match (synced)
+                            if os.path.exists(os.path.join(egstore, e.name)):
+                                has_sync = True
+                            else:
+                                # Look for ANY .item file in .egstore
+                                for sub in os.scandir(egstore):
+                                    if sub.is_file() and sub.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE):
+                                        superseded_by = sub.name
+                                        break
+
+                    # Score for sorting (Higher is better)
+                    # Priority: Synced > Complete > Newest
+                    score = 0
+                    if has_sync:      score += 1000
+                    if not is_incomplete: score += 500
+                    score += (e.stat().st_mtime / 1000000.0) # Add a small factor for mtime
+
+                    entry = {
+                        "file_path":    e.path,
+                        "file_name":    e.name,
+                        "display_name": display or app_name,
+                        "app_name":     app_name,
+                        "catalog_id":   catalog_id,
+                        "install_location": loc,
+                        "has_sync":     has_sync,
+                        "is_incomplete": is_incomplete,
+                        "superseded_by": superseded_by,
+                        "score":         score,
+                    }
+                    
+                    appname_map.setdefault(app_name, []).append(entry)
+                    if catalog_id:
+                        catalog_map.setdefault(catalog_id, []).append(entry)
+                    if norm_loc and display:
+                        folder_key = f"{norm_loc}|{display.lower()}"
+                        folder_map.setdefault(folder_key, []).append(entry)
+                except Exception:
+                    pass
+        except OSError:
+            pass
+
+        results = []
+        seen_files = set()
+
+        def flag_dupes(mapping):
+            for key, group in mapping.items():
+                if len(group) > 1:
+                    # Sort by score descending (best first)
+                    group.sort(key=lambda x: x["score"], reverse=True)
+                    
+                    primary = group[0]
+                    for dup in group[1:]:
+                        if dup["file_path"] not in seen_files:
+                            dup["root_file_name"] = primary["file_name"]
+                            
+                            # Add descriptive labels
+                            if dup["superseded_by"]:
+                                dup["display_name"] += f" (Superseded by {dup['superseded_by']})"
+                            elif dup["is_incomplete"] and not primary["is_incomplete"]:
+                                dup["display_name"] += " (Incomplete)"
+                            elif not dup["has_sync"] and primary["has_sync"]:
+                                dup["display_name"] += " (Out-of-Sync)"
+                            
+                            results.append(dup)
+                            seen_files.add(dup["file_path"])
+
+        flag_dupes(appname_map)
+        flag_dupes(catalog_map)
+        flag_dupes(folder_map)
+        return results
+
+    # ── One-click Fix (from .mancpn) ──────────────────────────────────────
+
+    @staticmethod
+    def discover_manifests(game_folder_path: str) -> list[dict]:
+        """
+        Scans <game_folder>/.egstore/ for all .item and .mancpn files.
+        Returns a list of deduplicated manifests.
+        
+        Deduplication logic:
+        1. Prefers .item files over .mancpn.
+        2. Deduplicates by CatalogItemId (if present) or AppName.
+        3. Only keeps the 'best' manifest for each unique component.
+        """
+        egstore = os.path.join(game_folder_path, GameDataManager.GAME_MANIFEST_FOLDER_NAME)
+        if not os.path.isdir(egstore):
+            return []
+
+        # Map CatalogItemId (or AppName as fallback) -> best manifest found so far
+        best_manifests: dict[str, dict] = {}
+
+        def add_if_better(data):
+            # Unique key: CatalogItemId is best, AppName is fallback
+            cid = data.get("CatalogItemId") or data.get("AppName")
+            if not cid: return
+
+            existing = best_manifests.get(cid)
+            if not existing:
+                best_manifests[cid] = data
+                return
+
+            # Scoring: .item > .mancpn
+            e_type = existing.get("manifest_type", "mancpn")
+            n_type = data.get("manifest_type", "mancpn")
+            
+            if n_type == "item" and e_type == "mancpn":
+                best_manifests[cid] = data
+            elif n_type == e_type:
+                # Tie-breaker: prefer higher version if possible
+                e_ver = existing.get("AppVersionString", "0")
+                n_ver = data.get("AppVersionString", "0")
+                if n_ver > e_ver:
+                    best_manifests[cid] = data
+
+        try:
+            # 1. Scan for .item files
+            for e in os.scandir(egstore):
+                if e.is_file() and e.name.endswith(GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE):
+                    try:
+                        with open(e.path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        data["manifest_source_path"] = e.path
+                        data["manifest_type"] = "item"
+                        add_if_better(data)
+                    except Exception:
+                        pass
+
+            # 2. Scan for .mancpn files
+            for e in os.scandir(egstore):
+                if e.is_file() and e.name.endswith(GameDataManager.MANCPN_FILE_TYPE):
+                    try:
+                        with open(e.path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        data["manifest_source_path"] = e.path
+                        data["manifest_type"] = "mancpn"
+                        add_if_better(data)
+                    except Exception:
+                        pass
+        except OSError:
+            pass
+
+        return list(best_manifests.values())
 
     @staticmethod
     def read_mancpn(game_folder_path: str) -> dict | None:
         """
-        Reads the first .mancpn file found inside <game_folder>/.egstore/.
-        Returns a dict with AppName, CatalogNamespace, CatalogItemId,
-        FormatVersion, and mancpn_path — or None if no .mancpn exists.
+        Legacy wrapper for discover_manifests that returns the most 'important' one.
+        Tries to find the main game entry first.
         """
-        egstore = os.path.join(game_folder_path, GameDataManager.GAME_MANIFEST_FOLDER_NAME)
-        if not os.path.isdir(egstore):
+        manifests = ManifestCapture.discover_manifests(game_folder_path)
+        if not manifests:
             return None
-        try:
-            for e in os.scandir(egstore):
-                if e.is_file() and e.name.endswith(GameDataManager.MANCPN_FILE_TYPE):
-                    with open(e.path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    return {
-                        "AppName":          data.get("AppName", ""),
-                        "CatalogNamespace": data.get("CatalogNamespace", ""),
-                        "CatalogItemId":    data.get("CatalogItemId", ""),
-                        "FormatVersion":    data.get("FormatVersion", 0),
-                        "mancpn_path":      e.path,
-                    }
-        except OSError:
-            pass
-        return None
+        
+        # Try to find the one where AppName == MainGameAppName (the main game)
+        for m in manifests:
+            if m.get("AppName") == m.get("MainGameAppName") and m.get("MainGameAppName"):
+                return m
+        
+        # Or just return the first one
+        return manifests[0]
+
 
     @staticmethod
     def create_item_manifest(
-        mancpn_data: dict,
+        manifest_data: dict,
         game_folder_path: str,
         manifests_root: str,
     ) -> tuple[bool, str]:
         """
-        Synthesises a full .item file from .mancpn data and writes it into
-        manifests_root.  The file is named <AppName>.item.
+        Synthesises or updates a full .item file from manifest_data and writes it into
+        manifests_root.
 
         Returns (success: bool, message: str).
         """
         try:
-            app_name  = mancpn_data["AppName"]
+            app_name  = manifest_data.get("AppName")
             if not app_name:
-                return False, "AppName is empty in .mancpn — cannot create manifest."
+                return False, "AppName is empty in manifest data — cannot create manifest."
+
+            # Determine the GUID (the official identity of this installation)
+            # 1. Try 'InstallationGuid' from the JSON metadata (most reliable)
+            guid = manifest_data.get("InstallationGuid")
+            
+            # 2. Try to get it from the source path filename (if it's an .item or .mancpn backup)
+            if not guid:
+                source_path = manifest_data.get("manifest_source_path")
+                if source_path:
+                    # Both .item and .mancpn backups use the GUID as the filename
+                    guid = os.path.splitext(os.path.basename(source_path))[0]
+            
+            # 3. Fallback to AppName
+            if not guid:
+                guid = app_name
+
+            # Update the original dict so callers (like add_to_launcher_installed) see it
+            manifest_data["InstallationGuid"] = guid
 
             egstore   = os.path.join(game_folder_path, GameDataManager.GAME_MANIFEST_FOLDER_NAME)
-            staging   = os.path.join(egstore, GameDataManager.STAGING_FOLDER_NAME)
-            item_name = app_name + GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE
+            staging   = os.path.join(egstore, "bps")
+            item_name = guid + GameDataManager.LAUNCHER_MANIFEST_FILE_TYPE
             item_path = os.path.join(manifests_root, item_name)
 
-            # Start from the .mancpn content (contains FormatVersion, CatalogNamespace…)
-            with open(mancpn_data["mancpn_path"], "r", encoding="utf-8") as f:
-                content = json.load(f)
+            # Use manifest_data as the base content
+            content = manifest_data.copy()
+            content.pop("manifest_source_path", None)
+            content.pop("manifest_type", None)
 
             # Inject / overwrite the location-dependent fields
-            content["InstallationGuid"]     = app_name
+            content["InstallationGuid"]     = guid
             content["InstallLocation"]      = game_folder_path.replace("\\", "/")
             content["ManifestLocation"]     = egstore.replace("\\", "/")
             content["StagingLocation"]      = staging.replace("\\", "/")
             content["bIsIncompleteInstall"] = False
-            content["AppVersionString"]     = "0"
+            
+            # Preserve existing version if present, otherwise set to "0"
+            if "AppVersionString" not in content:
+                content["AppVersionString"] = "0"
+            
+            if "DisplayName" not in content or not content["DisplayName"]:
+                # Robust DisplayName fallback
+                content["DisplayName"] = os.path.basename(game_folder_path.rstrip("/\\")) or app_name
 
-            with open(item_path, "w", encoding="utf-8") as f:
-                json.dump(content, f, indent=4)
+            # Atomic write via temp file
+            temp_path = item_path + ".relinker-tmp"
+            try:
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    json.dump(content, f, indent=4)
+                os.replace(temp_path, item_path)
+            except Exception as e:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                return False, f"Failed to write .item file: {e}"
 
-            return True, item_path
+            # Verification: Check if file exists on disk
+            if not os.path.exists(item_path):
+                return False, "Verification failed: .item file disappeared immediately after writing!"
+
+            # CRITICAL: Sync the tracking files in .egstore to match this GUID!
+            sync_msg = ManifestCapture._sync_egstore_files(item_path, game_folder_path)
+
+            return True, f"Manifest created and verified: {item_name} {sync_msg}"
 
         except Exception as exc:
             return False, f"Error creating .item manifest: {exc}"
@@ -691,58 +942,155 @@ class ManifestCapture:
 
         Returns (success: bool, message: str).
         """
+        import datetime
         src = GameDataManager.LAUNCHER_INSTALLED_DAT
-        backup = src.replace(".dat", ".relinker-backup.dat")
         try:
-            if not os.path.exists(backup) and os.path.exists(src):
-                shutil.copy2(src, backup)
-                return True, f"Backup created: {backup}"
-            return True, "Backup already exists — skipped."
+            if os.path.exists(src):
+                cache_dir = os.path.join(os.getcwd(), ".cache", "backups")
+                os.makedirs(cache_dir, exist_ok=True)
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                dest = os.path.join(cache_dir, f"LauncherInstalled.backup_{ts}.dat")
+                shutil.copy2(src, dest)
+                return True, f"Backup created in local cache: {os.path.basename(dest)}"
+            return True, "No original file to back up — skipped."
         except Exception as exc:
             return False, f"Could not back up LauncherInstalled.dat: {exc}"
 
     @staticmethod
+    def get_launcher_installed_map() -> dict[str, str]:
+        """
+        Reads LauncherInstalled.dat and returns { AppName.lower(): normalized_path }.
+        Used for identifying 'Linked' vs 'Unregistered' games.
+        """
+        results = {}
+        dat_path = GameDataManager.LAUNCHER_INSTALLED_DAT
+        if os.path.exists(dat_path):
+            try:
+                with open(dat_path, "r", encoding="utf-8") as f:
+                    dat = json.load(f)
+                    for install in dat.get("InstallationList", []):
+                        app = str(install.get("AppName") or "").strip()
+                        loc = install.get("InstallLocation")
+                        if app and loc:
+                            norm_loc = os.path.normpath(loc).lower().rstrip("\\/")
+                            results[app.lower()] = norm_loc
+                
+                # Debug Dump: Print all registered apps (first 5 to avoid spam)
+                if results:
+                    print(f"[DEBUG] Registry contains {len(results)} items. Samples: {list(results.keys())[:10]}")
+            except Exception:
+                pass
+        return results
+
+    @staticmethod
     def add_to_launcher_installed(
-        mancpn_data: dict,
+        manifest_data_list: list[dict] | dict,
         game_folder_path: str,
     ) -> tuple[bool, str]:
         """
-        Adds (or updates) an entry for the game in LauncherInstalled.dat.
-        Deduplicates by AppName so re-running never creates duplicate entries.
+        Adds (or updates) entries for the games/DLCs in LauncherInstalled.dat.
+        Deduplicates by AppName. Can take a single manifest dict or a list.
 
         Returns (success: bool, message: str).
         """
+        if isinstance(manifest_data_list, dict):
+            manifest_data_list = [manifest_data_list]
+
         dat_path = GameDataManager.LAUNCHER_INSTALLED_DAT
         try:
             if not os.path.exists(dat_path):
                 return False, f"LauncherInstalled.dat not found at {dat_path}"
 
-            app_name = mancpn_data.get("AppName", "")
-            if not app_name:
-                return False, "AppName is empty — cannot update LauncherInstalled.dat."
-
             with open(dat_path, "r", encoding="utf-8") as f:
                 dat = json.load(f)
 
-            # Remove any existing entry with the same AppName (clean dedup)
-            dat["InstallationList"] = [
-                e for e in dat.get("InstallationList", [])
-                if e.get("AppName") != app_name
-            ]
+            processed_names = []
+            for m_data in manifest_data_list:
+                app_name = m_data.get("AppName", "")
+                if not app_name:
+                    continue
 
-            dat["InstallationList"].append({
-                "InstallLocation": game_folder_path.replace("\\", "/"),
-                "NamespaceId":     mancpn_data.get("CatalogNamespace", ""),
-                "ItemId":          mancpn_data.get("CatalogItemId", ""),
-                "ArtifactId":      app_name,
-                "AppVersion":      "",
-                "AppName":         app_name,
-            })
+                # Find and preserve existing fields if the entry already exists
+                existing_entry = {}
+                for e in dat.get("InstallationList", []):
+                    if str(e.get("AppName")).lower() == app_name.lower():
+                        existing_entry = e
+                        break
 
-            with open(dat_path, "w", encoding="utf-8") as f:
-                json.dump(dat, f, indent=4)
+                # Remove the old one
+                dat["InstallationList"] = [
+                    e for e in dat.get("InstallationList", [])
+                    if str(e.get("AppName")).lower() != app_name.lower()
+                ]
 
-            return True, f"Added '{app_name}' to LauncherInstalled.dat"
+                # Map core fields, preserving others
+                new_entry = existing_entry.copy()
+                new_entry.update({
+                    "InstallLocation":   game_folder_path.replace("\\", "/"),
+                    "NamespaceId":       m_data.get("CatalogNamespace") or m_data.get("NamespaceId") or new_entry.get("NamespaceId", ""),
+                    "ItemId":            m_data.get("CatalogItemId") or m_data.get("ItemId") or new_entry.get("ItemId", ""),
+                    "ArtifactId":        m_data.get("ArtifactId") or m_data.get("AppName") or new_entry.get("ArtifactId", ""),
+                    "AppVersion":        m_data.get("AppVersionString") or m_data.get("AppVersion") or new_entry.get("AppVersion", ""),
+                    "AppName":           app_name,
+                })
+                
+                dat["InstallationList"].append(new_entry)
+                processed_names.append(app_name)
+
+            if not processed_names:
+                return False, "No valid AppNames found in manifest list."
+
+            # NON-ATOMIC write (keeps file identity/inode)
+            # Some file monitors or system tools dislike os.replace/os.rename on ProgramData
+            try:
+                with open(dat_path, "w", encoding="utf-8") as f:
+                    json.dump(dat, f, indent=4)
+            except Exception as e:
+                return False, f"Failed to write to registry file: {e}"
+
+            # Verification: Read back to confirm
+            try:
+                with open(dat_path, "r", encoding="utf-8") as f:
+                    ver_dat = json.load(f)
+                    ver_list = ver_dat.get("InstallationList", [])
+                    found_names = []
+                    missing_names = []
+                    for name in processed_names:
+                        if any(str(e.get("AppName")).lower() == name.lower() for e in ver_list):
+                            found_names.append(name)
+                        else:
+                            missing_names.append(name)
+                
+                # Additional debug info
+                count_before = len(dat.get("InstallationList", [])) - len(processed_names) # approx
+                count_after = len(ver_list)
+            except Exception as e:
+                return False, f"Could not read back file for verification: {e}"
+            
+            if missing_names:
+                return False, f"VERIFICATION FAILED: The following entries were GONE immediately after writing: {', '.join(missing_names)}. Total entries now: {count_after}."
+
+            return True, f"Registry sync complete. VERIFIED: {len(processed_names)} entries added. Total registry size: {count_after} games."
 
         except Exception as exc:
             return False, f"Error updating LauncherInstalled.dat: {exc}"
+
+    @staticmethod
+    def forensic_verify_registry(app_names: list[str]) -> tuple[bool, str]:
+        """
+        Performs a deep read-back of LauncherInstalled.dat to ensure 
+        the specific app_names are physically present.
+        """
+        dat_path = GameDataManager.LAUNCHER_INSTALLED_DAT
+        try:
+            import time
+            time.sleep(2) # Give OS a moment
+            with open(dat_path, "r", encoding="utf-8") as f:
+                dat = json.load(f)
+                ver_list = dat.get("InstallationList", [])
+                missing = [n for n in app_names if not any(str(e.get("AppName")).lower() == n.lower() for e in ver_list)]
+                if missing:
+                    return False, f"FORENSIC FAIL: Entries for {', '.join(missing)} DISAPPEARED after writing! Total entries: {len(ver_list)}"
+                return True, f"FORENSIC SUCCESS: All {len(app_names)} entries are firmly in the registry file."
+        except Exception as e:
+            return False, f"Forensic check error: {e}"

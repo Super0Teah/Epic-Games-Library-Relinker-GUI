@@ -3,7 +3,7 @@
 ---
 
 # Epic Games Library Relinker GUI
-**Version: V2.0.0**
+**Version: V2.0.1**
 
 A tool to relink, move, manage, link, capture/detect and fix games from the Epic Games Launcher.
 
@@ -124,17 +124,29 @@ You can package the application into a standalone Windows `.exe` using the inclu
 
 ## How to use the Modern GUI
 
-### Fixing "Unregistered" Games
-1. Ensure your **Manifests Folder** and **Games Folder** are set in Settings.
-2. Go to the **Library Fixer** tab.
-3. Any games marked as **Unregistered** can be added to Epic with one click using the **Fix** button.
+### 1. Library Fixer
+The **Library Fixer** is your primary dashboard. It scans your library and assigns statuses:
+- **Linked**: Ready to play.
+- **Unregistered**: Found on disk but missing from Epic registry.
+- **Missing Manifest**: Found on disk but missing its `.item` file in ProgramData.
+- **Duplicate (No Local Source)**: Registry entry exists, but game folder is missing tracking files.
 
-### Capturing Missing Manifests (Legacy Workflow)
-If a game has NO manifest file at all:
-1. Click **Capture** in Advanced Support.
-2. Start a fresh download of that game in the Epic Launcher.
-3. Once the launcher creates the `.item` file, click **Done** in the tool.
-4. The tool rewrites the manifest to point to your existing files and cancels the Epic download.
+**To fix any game:**
+1. Click **Refresh Library** to scan.
+2. For **Unregistered** or **Missing Manifest** entries, click **Fix**.
+3. The tool will terminate Epic processes, sync the registry, and rename local tracking files to match the launcher's identity.
+
+### 2. Moving Games
+1. Select a **Linked** game in the Library tab.
+2. Click **Move** and choose a destination folder.
+3. The tool transfers the files and updates the registry in real-time.
+
+### 3. Advanced Tools
+Use these if the standard **Fix** button fails or if you have specific needs:
+- **Capture**: Detect a game that has NO manifests at all by starting a fresh download in Epic and "capturing" the ID.
+- **Link**: Manually pair a "Pending" manifest with a game folder if the metadata is missing.
+- **Fix Manifest Link**: Use the interactive picker to manually match any manifest to any folder.
+- **Manifest Cleanup**: Safely remove orphaned "Ghost" entries from your system.
 
 ---
 
@@ -144,16 +156,29 @@ If a game has NO manifest file at all:
 src/
   main.py               # Entry point
   webview_app.py        # GUI backend (pywebview API)
-  handlers/             # Modular backend logic (Library, Actions, Settings)
-  web/                  # Frontend (HTML/JS/CSS)
+  manifest_capture.py   # Core logic (Registry sync, Manifest patching)
+  game_data.py          # Data models and Epic path management
+  file_management.py    # IO utilities
+  handlers/             # Controller logic (Library, Actions, Settings, Tools)
+  web/                  # Modern UI assets (HTML/JS/CSS)
 archive/                # Legacy CustomTkinter code
-build_project.py        # Automated build script
+build_project.py        # Automated build script for .exe
 ```
 
 ---
 
-## Research Notes
+## Research Notes (Fork Updates)
 
-The Epic Games Launcher stores `.item` manifest files in `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests` rather than alongside each game. This tool patches those paths directly inside the manifest JSON so the launcher can find the game again. 
+The Epic Games Launcher stores `.item` manifest files in `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests`. This tool patches those paths directly inside the manifest JSON. 
 
-This version goes further by reading `C:\ProgramData\Epic\UnrealEngineLauncher\LauncherInstalled.dat` to ensure the internal registry matches the file system, preventing the "uninstalled" bug even when manifest files are present.
+### **Metadata Sync:**
+- **The `.egstore` Folder**: Every installed game contains a hidden `.egstore` folder. This is the local "Source of Truth" that holds the binary `.manifest` and `.mancpn` files required for the Launcher to recognize the installation.
+
+- **`.mancpn` File Usage**: Inside `.egstore`, the tool looks for `.mancpn` files. These contain the internal `AppName`, `CatalogItemId`, and `NamespaceId` needed to link the game folder back to the Epic Launcher, it uses that data and links it automatically.
+
+- **`LauncherInstalled.dat`**: This is the global registry file located in `C:\ProgramData\Epic\UnrealEngineLauncher\`. The Launcher reads this file on every startup to build its internal list of installed games Epic Games Launcher will rewrite it if any data is incorrect, missing or not matching the .item files in the manifests folder.
+
+- **Epic Games Launcher Is Annoying**: The Epic Games Launcher is extremely sensitive to data consistency. If a registry entry in `.dat` points to a wrong folder, or if the `InstallationGuid` do not match the file name of the `.item` manifest in ProgramData, the Launcher will **Purge** the entry from the registry during its validation loop.
+
+- **Identity Sync**: To prevent these annoying purges, it tries to ensure a "Perfect Link" by renaming local manifest files and syncing GUIDs across the registry and the system manifests.
+

@@ -4,23 +4,26 @@ import subprocess
 import sys
 
 def build_main():
-    print("--- Building Main Version (PyWebView) ---")
+    clean()
+    print("\n--- Building Main Version (PyWebView) v2.0.1 ---")
     
     # Path setup
     entry_point = os.path.join("src", "main.py")
     icon_path = "" # Add path to .ico if you have one
     
-    # PyInstaller command (run as module for better compatibility on Windows)
+    # PyInstaller command
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
         "--onefile",
         "--windowed",
-        "--name", "EpicGamesRelinker",
+        "--name", "EpicGamesRelinker_v2.0.1",
         # Include the web folder (HTML/CSS/JS)
         f"--add-data=src/web{os.pathsep}web",
-        # Hidden imports for PyWebView on Windows
+        # Hidden imports for PyWebView on Windows (WinForms + EdgeChromium)
         "--hidden-import=webview.platforms.winforms",
+        "--hidden-import=webview.platforms.edgechromium",
+        "--collect-all", "webview",
         entry_point
     ]
     
@@ -66,8 +69,9 @@ def build_archive():
     subprocess.run(cmd)
 
 def clean():
-    print("Cleaning up build folders...")
-    for folder in ["build", "dist"]:
+    print("Cleaning up temporary build artifacts...")
+    # Only clean the build folder, keep the dist folder where EXEs are stored
+    for folder in ["build"]:
         if os.path.exists(folder):
             shutil.rmtree(folder)
     

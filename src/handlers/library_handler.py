@@ -43,7 +43,8 @@ class LibraryHandler:
                             an = entry.get("AppName")
                             loc = entry.get("InstallLocation")
                             if an:
-                                dat_registry[an] = os.path.normpath(loc).lower() if loc else ""
+                                # Store key as lowercase for consistent matching
+                                dat_registry[an.lower()] = os.path.normpath(loc).lower() if loc else ""
             except Exception:
                 pass
             groups            = {}
@@ -65,7 +66,7 @@ class LibraryHandler:
                     try:
                         with open(m["file"].path, "r", encoding="utf-8") as f:
                             d = json.load(f)
-                        an = d.get("AppName", "").strip()
+                        an = d.get("AppName", "").strip().lower()
                         if an:
                             root_app_names.add(an)
                     except Exception:
@@ -104,11 +105,31 @@ class LibraryHandler:
                     except: pass
                     current_status = status
                     can_import = False
+                    
+                    # Check if manifest exists in the actual game folder as well
+                    local_manifest_exists = False
+                    if norm_loc:
+                        local_item_path = os.path.join(norm_loc, ".egstore", m["file"].name)
+                        if os.path.exists(local_item_path):
+                            local_manifest_exists = True
+
                     if status == "Linked" and app_name:
-                        reg_loc = dat_registry.get(app_name)
-                        if reg_loc != norm_loc:
+                        reg_loc = dat_registry.get(app_name.lower())
+                        clean_norm = norm_loc.rstrip("\\/").lower()
+                        
+                        is_incomplete = False
+                        try:
+                            with open(m["file"].path, "r", encoding="utf-8") as f:
+                                m_json = json.load(f)
+                                is_incomplete = m_json.get("bIsIncompleteInstall", False)
+                        except: pass
+
+                        if not reg_loc or reg_loc != clean_norm or is_incomplete:
                             current_status = "Unregistered"
                             can_import = ManifestCapture.read_mancpn(norm_loc) is not None
+                        elif not local_manifest_exists:
+                            current_status = "Duplicate (No Local Source)"
+
                     target = results_games if (m == best_m or len(group) == 1) else results_dlcs
                     entry = self._create_entry(m, norm_loc, current_status, can_import)
                     entry["is_dlc"] = (target == results_dlcs)
@@ -122,7 +143,7 @@ class LibraryHandler:
                     install_loc = d.get("InstallLocation", "").strip()
                     status = (
                         "Pending Manifest"
-                        if (app_name and app_name in root_app_names)
+                        if (app_name and app_name.lower() in root_app_names)
                         else "Pending Install"
                     )
                     results_pending.append({
